@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Relatório de Execuções</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #333; padding: 5px; text-align: left; }
+    th { background-color: #eee; }
+  </style>
+</head>
+<body>
+  <h1>📄 Relatório de Execuções</h1>
+  <p>Gerado em: {{ generated_at }}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Bot</th>
+        <th>Tarefa</th>
+        <th>Status</th>
+        <th>Início</th>
+        <th>Fim</th>
+        <th>Duração (s)</th>
+        <th>Usuário</th>
+        <th>Host</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+        <tr>
+          <td>{{ log.task.bot.name }}</td>
+          <td>{{ log.task.name }}</td>
+          <td>{{ log.status }}</td>
+          <td>{{ log.start_time }}</td>
+          <td>{{ log.end_time }}</td>
+          <td>{{ log.duration.total_seconds|floatformat:2 }}</td>
+          <td>{{ log.user_login }}</td>
+          <td>{{ log.host_name }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
