@@ -1,0 +1,449 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap');
+
+/* === LIGHT THEME DEFAULT === */
+:root {
+  --bg: #f8f9fb;
+  --panel: #ffffff;
+  --text: #1f2937;
+  --text-muted: #4b5563;
+  --blue: #2563eb;
+  --green: #16a34a;
+  --red: #dc2626;
+  --yellow: #f59e0b;
+  --border: #d1d5db;
+  --hover: #f1f5f9;
+  --link: #1d4ed8;
+}
+
+body.light-mode {
+  --bg: #f8f9fb;
+  --panel: #ffffff;
+  --text: #1f2937;
+  --text-muted: #4b5563;
+  --blue: #2563eb;
+  --green: #16a34a;
+  --red: #dc2626;
+  --yellow: #f59e0b;
+  --border: #d1d5db;
+  --hover: #f1f5f9;
+  --link: #1d4ed8;
+}
+
+/* === DARK MODE === */
+body.dark-mode {
+  --bg: #111827;
+  --panel: #1f2937;
+  --text: #f3f4f6;
+  --text-muted: #9ca3af;
+  --blue: #60a5fa;
+  --green: #34d399;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --border: #374151;
+  --hover: #1e293b;
+  --link: #93c5fd;
+}
+
+/* === Global Base === */
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+}
+
+h1, h2, h3 {
+  color: var(--text);
+  font-weight: 600;
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* === Sidebar === */
+#nav-sidebar {
+  background-color: var(--panel);
+  border-right: 1px solid var(--border);
+}
+
+#nav-sidebar .module caption {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/* === Modules / Boxes === */
+.module {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 16px;
+  border-radius: 6px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* === Table styles === */
+table {
+  background-color: var(--panel);
+  color: var(--text);
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 8px;
+}
+
+th {
+  background: var(--hover);
+  color: var(--text-muted);
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  background-color: var(--panel);
+}
+
+tr:hover {
+  background-color: var(--hover);
+}
+
+.results td a,
+.field a {
+  color: var(--text);
+}
+.results td a:hover {
+  color: var(--blue);
+}
+
+/* ==== Corrige fundo e texto da tabela de resultados ==== */
+#changelist-form, .results, .results table {
+  background-color: var(--panel) !important;
+  color: var(--text) !important;
+}
+
+.results th {
+  background-color: var(--hover) !important;
+  color: var(--text-muted) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+.results td {
+  background-color: var(--panel) !important;
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* Corrige fundo do seletor lateral (filtros) */
+#changelist-filter {
+  background-color: var(--panel) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+#changelist-filter h2, #changelist-filter label {
+  color: var(--text-muted) !important;
+}
+
+#changelist-filter input,
+#changelist-filter select {
+  background-color: var(--panel) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* Corrige header azul escuro que persiste no modo light */
+#header, #user-tools {
+  background-color: var(--panel) !important;
+  color: var(--text) !important;
+}
+
+/* Corrige botão de pesquisa e seletores da tabela */
+#changelist-form input[type="submit"],
+#changelist-form input[type="button"],
+#changelist-form .selector {
+  background-color: var(--blue) !important;
+  color: #fff !important;
+  border: none;
+  border-radius: 4px;
+}
+
+/* Corrige links no cabeçalho da tabela */
+#changelist-form th a {
+  color: var(--link) !important;
+}
+
+/* Corrige hover e clique no checkbox e linhas */
+.results tr:hover {
+  background-color: var(--hover) !important;
+}
+
+.results td.selected {
+  background-color: var(--hover) !important;
+}
+
+/* Corrige botoes de action */
+.submit-row input[type="submit"],
+.button.default {
+  background-color: var(--blue) !important;
+  color: #fff !important;
+  border: none !important;
+}
+
+/* Alinha input de busca */
+#searchbar {
+  background-color: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+
+/* === Forms and Inputs === */
+input, select, textarea {
+  background-color: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* === Buttons === */
+.button, input[type="submit"], .submit-row input {
+  background-color: var(--blue) !important;
+  color: #fff !important;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.button:hover {
+  background-color: #1e40af !important;
+  cursor: pointer;
+}
+
+/* === Charts === */
+canvas {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  padding: 8px;
+  border-radius: 8px;
+}
+
+/* ✅ Corrige textos nos cabeçalhos da tabela */
+.results th {
+  background-color: var(--hover) !important;
+  color: var(--text) !important; /* Era --text-muted antes */
+  font-weight: 600;
+}
+
+/* ✅ Corrige links apagados no modo claro */
+a, .module a, .selector-chosen a {
+  color: var(--blue) !important;
+  font-weight: 500;
+}
+
+a:hover, .module a:hover {
+  color: #1e40af !important; /* Azul mais escuro ao hover */
+}
+
+/* ✅ Corrige cores do título do filtro */
+#changelist-filter h2 {
+  color: var(--text) !important;
+  font-weight: 600;
+}
+
+/* ✅ Corrige botões da pesquisa lateral */
+#changelist-filter input[type="submit"],
+#changelist-filter input[type="button"] {
+  background-color: var(--blue) !important;
+  color: #fff !important;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* ✅ Corrige blocos do header (logo, login, menu etc) */
+#branding, #user-tools, #header {
+  background-color: var(--panel) !important;
+  color: var(--text) !important;
+}
+
+/* ✅ Corrige labels em forms e filtros */
+label {
+  color: var(--text) !important;
+}
+
+/* ✅ Corrige menus dropdown (se houver) */
+select {
+  background-color: var(--panel) !important;
+  color: var(--text) !important;
+}
+
+/* ✅ Corrige placeholder invisível */
+::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 1;
+}
+
+/* ✅ Corrige ícones que herdam contraste fraco */
+svg, i, .icon, .tools {
+  color: var(--text-muted) !important;
+}
+
+
+/* Corrige links no light */
+body.light-mode a {
+  color: var(--link) !important;
+}
+
+body.light-mode a:hover {
+  color: var(--link-hover) !important;
+  text-decoration: underline;
+}
+
+body.dark-mode a {
+  color: var(--link) !important;
+}
+
+body.dark-mode a:hover {
+  color: var(--link-hover) !important;
+  text-decoration: underline;
+}
+
+/* Cabeçalhos e cards */
+body.light-mode .chart-section h3,
+body.light-mode .module h2 {
+  color: var(--text);
+}
+
+/* Botões de alternar tema: deixa só um */
+.toggle-theme {
+  margin-left: 12px;
+  background-color: #eee;
+  border: 1px solid #ccc;
+  color: #333;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.toggle-theme:hover {
+  background-color: #ddd;
+  cursor: pointer;
+}
+
+/* Oculta o botão nativo do Django Admin 5.x */
+button.theme-toggle {
+  display: none !important;
+}
+
+/* === 💡 Tema claro fix para Django Admin 5+ === */
+
+/* 🔧 Força o fundo claro em headers e barras */
+html[data-theme="light"] .actions,
+html[data-theme="light"] .toolbar,
+html[data-theme="light"] .object-tools {
+  background-color: #f9f9f9 !important;
+  border-color: #ddd !important;
+}
+
+/* 🔧 Corrige cor de fonte e fundo em selects e botões do topo */
+html[data-theme="light"] .actions select,
+html[data-theme="light"] .toolbar select,
+html[data-theme="light"] .toolbar input,
+html[data-theme="light"] .object-tools a {
+  color: #111 !important;
+  background-color: #fff !important;
+  border-color: #ccc !important;
+}
+
+/* 🔧 Corrige links apagados (tabela, topo, sidebar etc) */
+html[data-theme="light"] a,
+html[data-theme="light"] .results td a,
+html[data-theme="light"] .module a,
+html[data-theme="light"] .selector-chosen a,
+html[data-theme="light"] .changelist-form th a {
+  color: #111 !important;
+  font-weight: 500;
+}
+
+html[data-theme="light"] a:hover {
+  color: #0d6efd !important;
+  text-decoration: underline;
+}
+
+/* 🔧 Botões tipo Exportar, Salvar etc no modo claro */
+html[data-theme="light"] .object-tools a.button,
+html[data-theme="light"] .submit-row input[type="submit"],
+html[data-theme="light"] .button.default {
+  background-color: #e0e0e0 !important;
+  color: #000 !important;
+  border: 1px solid #ccc;
+}
+
+/* 🔧 Cabeçalhos */
+html[data-theme="light"] h1,
+html[data-theme="light"] h2,
+html[data-theme="light"] h3,
+html[data-theme="light"] .module caption {
+  color: #111 !important;
+}
+
+/* 🔧 Placeholder legível */
+html[data-theme="light"] ::placeholder {
+  color: #666 !important;
+}
+
+/* 🔧 Bordas de inputs/tabelas mais suaves */
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea {
+  border-color: #ccc !important;
+}
+body[data-theme="light"] { /* fallback extra */
+  background-color: #f8f9fb !important;
+  color: #111 !important;
+}
+
+/* Tema Light (padrão) */
+body.light-mode #nav-filter,
+body.light-mode .actions,
+body.light-mode #toolbar {
+  background-color: var(--bg) !important;
+}
+
+/* Tema Dark */
+body.light-mode #nav-filter,
+body.dark-mode .actions,
+body.dark-mode #toolbar {
+  background-color: #1e1e1e !important; /* ou outro tom escuro */
+  color: var(--bg) !important; /* se precisar mudar texto também */
+}
+
+/* Estilo de status com fallback para dark mode
+.field-status {
+  font-weight: bold;
+  padding: 5px;
+  border-radius: 4px;
+}
+
+.field-status:contains("Completed") {
+  background-color: #e6ffe6;
+  color: green;
+}
+.field-status:contains("Failed") {
+  background-color: #ffe6e6;
+  color: red;
+} */
