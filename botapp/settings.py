@@ -83,3 +83,7 @@ EMAIL_HOST_USER = os.getenv('BOTAPP_EMAIL_USER')
 EMAIL_HOST_PASSWORD = os.getenv('BOTAPP_EMAIL_PASSWORD')
 EMAIL_USE_TLS = os.getenv('BOTAPP_EMAIL_USE_TLS', 'True') == 'True'
 DEFAULT_FROM_EMAIL = os.getenv('BOTAPP_DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+LOGIN_URL = '/accounts/login/'  # Ou sua URL de login personalizada
+LOGIN_REDIRECT_URL = '/bots/'  # Ou qualquer outra view que você queira redirecionar
+LOGOUT_REDIRECT_URL = '/accounts/login/'     # Redireciona para a página de login após logout

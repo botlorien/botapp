@@ -1,4 +1,5 @@
 import time
+import threading
 from botapp import BotApp
 
 # 1. Inicializa o app e conecta com o banco
@@ -22,8 +23,8 @@ def exemplo_sucess():
 @app.task
 def exemplo_running():
     """Descrição da tarefa"""
-    print("Executando a tarefa exemplo 15 s em execução")
-    time.sleep(15)
+    print("Executando a tarefa exemplo 30 s em execução")
+    time.sleep(30)
     return "Sucesso!"
 
 @app.task
@@ -35,7 +36,10 @@ def exemplo_failed():
 
 # 4. Executa a task
 exemplo_sucess()
-#exemplo_running()
+
+# Executa a tarefa em um thread separado
+thread = threading.Thread(target=exemplo_running)
+thread.start()
 try:
     exemplo_failed()
 except Exception as e:
@@ -46,7 +50,7 @@ except Exception as e:
 app2 = BotApp('BotsCarvalima')
 
 app2.set_bot(
-    bot_name='Bot_de_inativo',
+    bot_name='Bot_teste_inativo',
     bot_description='Bot de testes de desenvolvimento',
     bot_version='0.1.0',
     bot_department='TI-Atualizada'
@@ -64,5 +68,7 @@ def exemplo_sucess():
 
 exemplo_sucess()
 
+app2.bot_instance.is_active = False
+app2.bot_instance.save()
 
-app.open_admin()
+exemplo_sucess()

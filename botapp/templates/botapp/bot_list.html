@@ -1,0 +1,81 @@
+{% extends "botapp/base.html" %}
+{% load static %}
+
+{% block title %}RPA | Lista de Bots{% endblock %}
+
+{% block content %}
+<div class="bot-list-container">
+  <div class="section-header">
+    <h1>Bots Disponíveis</h1>
+    
+    <form method="get" class="bot-filter-bar">
+      <div class="filter-group">
+        <label>Nome:</label>
+        <input type="text" name="name" value="{{ request.GET.name }}" placeholder="Filtrar por nome">
+      </div>
+      
+      <div class="filter-group">
+        <label>Departamento:</label>
+        <input type="text" name="department" value="{{ request.GET.department }}" placeholder="Filtrar por departamento">
+      </div>
+      
+      <div class="filter-group">
+        <label>Status:</label>
+        <select name="is_active">
+          <option value="">Todos</option>
+          <option value="true" {% if request.GET.is_active == "true" %}selected{% endif %}>Ativos</option>
+          <option value="false" {% if request.GET.is_active == "false" %}selected{% endif %}>Inativos</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label>Último Status:</label>
+        <select name="last_status">
+          <option value="">Todos</option>
+          <option value="started" {% if request.GET.last_status == "started" %}selected{% endif %}>Iniciado</option>
+          <option value="completed" {% if request.GET.last_status == "completed" %}selected{% endif %}>Completo</option>
+          <option value="failed" {% if request.GET.last_status == "failed" %}selected{% endif %}>Falhou</option>
+        </select>
+      </div>
+      
+      <button type="submit" class="filter-button">
+        <span class="icon">🔍</span> Filtrar
+      </button>
+    </form>
+  </div>
+
+  <div class="bot-grid">
+    {% for bot in bots %}
+    <a href="{% url 'bot_detail' bot.id %}" class="bot-card">
+      <div class="status-indicator status-{{ bot.latest_status|default:'unknown'|lower }}"></div>
+      <div class="bot-icon">🤖</div>
+      <h2>{{ bot.name }}</h2>
+      
+      <div class="bot-status">
+        <span class="badge {% if bot.is_active %}active{% else %}inactive{% endif %}">
+          {{ bot.is_active|yesno:"Ativo,Inativo" }}
+        </span>
+        {% if bot.latest_status %}
+        <span class="badge status-{{ bot.latest_status|lower }}">
+          {{ bot.latest_status|title }}
+        </span>
+        {% endif %}
+      </div>
+      
+      <div class="meta">
+        <span><strong>Departamento:</strong> {{ bot.department }}</span>
+        <span><strong>Versão:</strong> {{ bot.version }}</span>
+      </div>
+      
+      <p class="bot-description">{{ bot.description|truncatechars:100 }}</p>
+    </a>
+    {% empty %}
+    <div class="no-bots">
+      <p>Nenhum bot encontrado com os filtros aplicados.</p>
+      <a href="{% url 'bot_list' %}" class="clear-filters">Limpar filtros</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

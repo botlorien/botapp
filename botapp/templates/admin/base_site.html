@@ -7,16 +7,44 @@
   <link rel="stylesheet" href="{% static 'admin/css/custom.css' %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
 {% endblock %}
 
 {% block branding %}
-  <div style="display: flex; justify-content: space-between; align-items: center;">
-    <h1 id="site-name" style="font-weight: 600; font-family: 'Inter', sans-serif;">🤖 RPA | Monitoramento</h1>
-    <button id="toggle-theme"
-            style="background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-weight: bold;">
-      🌓 Alternar Tema
-    </button>
-  </div>
+<div class="header-container">
+    <!-- Logo e Nome do Sistema -->
+    <div class="header-brand">
+        <a href="{% url 'bot_list' %}" class="brand-link">
+            <i class="bi bi-cpu-fill bot-icon"></i>
+            <h1 id="site-name">RPA | Monitoramento</h1>
+        </a>
+    </div>
+    
+    <!-- Navegação -->
+    <nav class="header-nav">
+        <a href="{% url 'dashboard' %}" class="nav-link">
+            <i class="bi bi-speedometer2"></i>
+            <span>Dashboard</span>
+        </a>
+        
+        <!-- Botão Alternar Tema -->
+        <button id="toggle-theme"
+                style="background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-weight: bold;">
+          🌓 Alternar Tema
+        </button>
+
+        <!-- Botão de Logout -->
+        {% if user.is_authenticated %}
+        <form action="{% url 'logout' %}" method="post" class="logout-form">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">
+                <i class="bi bi-box-arrow-right"></i>
+                <span class="logout-text">Sair</span>
+            </button>
+        </form>
+        {% endif %}
+    </nav>
+</div>
 {% endblock %}
 
 {% block extrahead %}
@@ -45,6 +73,7 @@
             document.body.classList.add("light-mode");
             document.body.classList.remove("dark-mode");
         }
+        location.reload(); // Recarrega a página para aplicar o tema
       });
     });
   </script>

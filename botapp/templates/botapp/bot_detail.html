@@ -1,0 +1,294 @@
+{% extends "botapp/base.html" %}
+{% load static %}
+
+{% block title %}{{ bot.name }} | Detalhes{% endblock %}
+
+{% block content %}
+<div class="bot-detail-container">
+  <div class="bot-detail-header">
+    <div class="bot-icon">🤖</div>
+    <h1>{{ bot.name }}</h1>
+    <span class="badge {% if bot.is_active %}active{% else %}inactive{% endif %}">
+      {{ bot.is_active|yesno:"Ativo,Inativo" }}
+    </span>
+    <button id="toggleBotStatus" class="status-toggle {% if bot.is_active %}deactivate{% else %}activate{% endif %}" 
+    data-bot-id="{{ bot.id }}">
+    {{ bot.is_active|yesno:"Desativar Bot,Ativar Bot" }}
+    </button>
+  </div>
+
+  <div class="bot-detail-card">
+    <div class="bot-info">
+      <p class="bot-description">{{ bot.description }}</p>
+      
+      <div class="bot-meta-grid">
+        <div class="meta-item">
+          <span class="meta-label">Departamento:</span>
+          <span class="meta-value">{{ bot.department }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Versão:</span>
+          <span class="meta-value">{{ bot.version }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Criado em:</span>
+          <span class="meta-value">{{ bot.created_at|date:"d/m/Y H:i" }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-divider">
+    <h2>Logs de Execução</h2>
+    <form method="get" class="log-filters">
+      <div class="filter-group">
+        <label>Início:</label>
+        <input type="date" name="start_time" value="{{ request.GET.start_time }}">
+      </div>
+      <div class="filter-group">
+        <label>Fim:</label>
+        <input type="date" name="end_time" value="{{ request.GET.end_time }}">
+      </div>
+      <button type="submit" class="filter-button">
+        <span class="icon">🔍</span> Filtrar
+      </button>
+    </form>
+  </div>
+
+  <div class="table-container">
+    <table class="log-table">
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Início</th>
+          <th>Fim</th>
+          <th>Duração</th>
+          <th>Erro</th>
+          <th>Sistema</th>
+          <th>Usuário</th>
+          <th class="actions">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr class="log-row {% cycle 'odd' 'even' %}">
+          <td>
+            <span class="badge status-{{ log.status|default:'unknown'|lower }}"></span>
+            {{ log.status|default:"-" }}
+          </td>
+          <td>{{ log.start_time|default:"-"|date:"d/m/Y H:i" }}</td>
+          <td>{{ log.end_time|default:"-"|date:"d/m/Y H:i" }}</td>
+          <td>
+            {% if log.duration %}
+              {{ log.duration|time:"H:i:s" }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>
+            {% if log.error_message %}
+              <span class="error-tooltip" title="{{ log.error_message }}">
+                {{ log.error_message|truncatechars:30 }}
+              </span>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td>{{ log.os_platform|default:"-" }}</td>
+          <td>{{ log.user_login|default:"-" }}</td>
+          <td class="actions">
+            <button class="detail-button" onclick="showLogDetails({{ log.id }})">
+              Detalhes
+            </button>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" class="no-logs">Nenhum log encontrado.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <!-- Navegação de páginas -->
+    <div class="pagination">
+        <span class="step-links">
+            {% if page_obj.has_previous %}
+            <a href="?page=1{% if request.GET.start_time %}&start_time={{ request.GET.start_time }}{% endif %}{% if request.GET.end_time %}&end_time={{ request.GET.end_time }}{% endif %}">&laquo; primeira</a>
+            <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.start_time %}&start_time={{ request.GET.start_time }}{% endif %}{% if request.GET.end_time %}&end_time={{ request.GET.end_time }}{% endif %}">anterior</a>
+            {% endif %}
+    
+            <span class="current">
+            Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}.
+            </span>
+    
+            {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% if request.GET.start_time %}&start_time={{ request.GET.start_time }}{% endif %}{% if request.GET.end_time %}&end_time={{ request.GET.end_time }}{% endif %}">próxima</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.start_time %}&start_time={{ request.GET.start_time }}{% endif %}{% if request.GET.end_time %}&end_time={{ request.GET.end_time }}{% endif %}">última &raquo;</a>
+            {% endif %}
+        </span>
+        </div>
+
+  </div>
+
+  <!-- Modal para detalhes do log -->
+  <div id="logModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal">&times;</span>
+      <div id="logDetails"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+    function showLogDetails(logId) {
+      // Faz a requisição para a view log_detail
+      fetch(`/log/${logId}/`, {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        // Formata os dados para exibição
+        const formattedData = `
+          <h3>Detalhes do Log #${data.id}</h3>
+          <div class="log-detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">Status:</span>
+              <span class="detail-value">${data.status || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Início:</span>
+              <span class="detail-value">${data.start_time || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Fim:</span>
+              <span class="detail-value">${data.end_time || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Duração:</span>
+              <span class="detail-value">${data.duration || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Mensagem de Erro:</span>
+              <span class="detail-value">${data.error_message || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Tipo de Exceção:</span>
+              <span class="detail-value">${data.exception_type || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Diretório do Bot:</span>
+              <span class="detail-value">${data.bot_dir || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Sistema Operacional:</span>
+              <span class="detail-value">${data.os_platform || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Versão Python:</span>
+              <span class="detail-value">${data.python_version || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">IP do Host:</span>
+              <span class="detail-value">${data.host_ip || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Nome do Host:</span>
+              <span class="detail-value">${data.host_name || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Usuário:</span>
+              <span class="detail-value">${data.user_login || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">PID:</span>
+              <span class="detail-value">${data.pid || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Acionamento Manual:</span>
+              <span class="detail-value">${data.manual_trigger ? 'Sim' : 'Não'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Fonte do Acionamento:</span>
+              <span class="detail-value">${data.trigger_source || '-'}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Ambiente:</span>
+              <span class="detail-value">${data.env || '-'}</span>
+            </div>
+            ${data.result_data ? `
+              <div class="detail-item full-width">
+                <span class="detail-label">Dados de Resultado:</span>
+                <pre class="detail-value">${JSON.stringify(data.result_data, null, 2)}</pre>
+              </div>
+            ` : ''}
+          </div>
+        `;
+        
+        document.getElementById('logDetails').innerHTML = formattedData;
+        document.getElementById('logModal').style.display = 'block';
+      })
+      .catch(error => {
+        document.getElementById('logDetails').innerHTML = `
+          <h3>Erro ao carregar detalhes</h3>
+          <p>Não foi possível carregar os detalhes deste log.</p>
+        `;
+        document.getElementById('logModal').style.display = 'block';
+      });
+    }
+  
+    // Mantém os listeners para fechar o modal
+    document.querySelector('.close-modal').addEventListener('click', function() {
+      document.getElementById('logModal').style.display = 'none';
+    });
+  
+    window.addEventListener('click', function(event) {
+      if (event.target == document.getElementById('logModal')) {
+        document.getElementById('logModal').style.display = 'none';
+      }
+    });
+  </script>
+  <script>
+    // Toggle bot status
+    document.getElementById('toggleBotStatus').addEventListener('click', function() {
+      const botId = this.dataset.botId;
+      const isCurrentlyActive = this.classList.contains('deactivate');
+      const action = isCurrentlyActive ? 'desativar' : 'ativar';
+      
+      if (confirm(`Tem certeza que deseja ${action} este bot?`)) {
+        fetch(`/bot/${botId}/toggle-status/`, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({})
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === 'success') {
+            // Atualiza a UI
+            const statusBadge = document.querySelector('.bot-detail-header .badge');
+            statusBadge.textContent = data.is_active ? 'Ativo' : 'Inativo';
+            statusBadge.className = data.is_active ? 'badge active' : 'badge inactive';
+            
+            // Atualiza o botão
+            const toggleButton = document.getElementById('toggleBotStatus');
+            toggleButton.textContent = data.is_active ? 'Desativar Bot' : 'Ativar Bot';
+            toggleButton.className = `status-toggle ${data.is_active ? 'deactivate' : 'activate'}`;
+            
+            // Mostra mensagem de sucesso
+            alert(data.message);
+          }
+        })
+        .catch(error => {
+          alert('Ocorreu um erro ao atualizar o status do bot.');
+        });
+      }
+    });
+  
+    // Restante dos scripts mantido igual
+    // ...
+  </script>
+{% endblock %}
