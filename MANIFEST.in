@@ -1,3 +1,7 @@
 include README.md
 include LICENSE
+include botapp/static/*
+include botapp/templates/*
 recursive-include botapp/migrations *
+recursive-include botapp/static *
+recursive-include botapp/templates *
