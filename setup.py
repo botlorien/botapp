@@ -27,3 +27,8 @@ setup(
     ],
     python_requires='>=3.8',
 )
+
+# pip install setuptools
+# python setup.py sdist
+# pip install twine
+# twine upload dist/*
