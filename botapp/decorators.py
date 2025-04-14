@@ -49,7 +49,7 @@ def task(app, func=None):
             python_version = None
 
         pid = os.getpid()
-        env = os.environ.get('DJANGO_ENV', 'dev')
+        env = os.environ.get('BOTAPP_DEPLOY_ENV', 'dev')
         trigger_source = "cli"
         manual_trigger = True
 
