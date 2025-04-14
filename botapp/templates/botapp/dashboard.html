@@ -1,0 +1,225 @@
+{% extends "botapp/base.html" %}
+{% load static %}
+
+{% block title %}Dashboard de Bots{% endblock %}
+
+{% block extrahead %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Função para atualizar gráficos dinâmicos via AJAX
+function updateDynamicCharts() {
+    const startDate = document.querySelector('input[name="start_date"]').value;
+    const endDate = document.querySelector('input[name="end_date"]').value;
+    
+    fetch(`?start_date=${startDate}&end_date=${endDate}&ajax=1`)
+        .then(response => response.json())
+        .then(data => {
+            // Atualizar gráfico de status
+            statusChart.data.labels = data.status_labels;
+            statusChart.data.datasets[0].data = data.status_counts;
+            statusChart.update();
+            
+            // Atualizar gráfico de tempo de execução
+            executionTimeChart.data.labels = data.bot_names;
+            executionTimeChart.data.datasets[0].data = data.bot_durations;
+            executionTimeChart.update();
+        });
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+  <h1>Dashboard de Bots RPA</h1>
+  
+  <!-- Seção de Métricas FIXAS -->
+  <div class="section-title">
+    <h2>Métricas Gerais</h2>
+    <p>Dados consolidados independentes de período</p>
+  </div>
+  
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <h3>Total de Bots</h3>
+      <div class="metric-value">{{ total_bots }}</div>
+    </div>
+    
+    <div class="metric-card active">
+      <h3>Bots Ativos</h3>
+      <div class="metric-value">{{ active_bots }}</div>
+    </div>
+    
+    <div class="metric-card inactive">
+      <h3>Bots Inativos</h3>
+      <div class="metric-value">{{ inactive_bots }}</div>
+    </div>
+  </div>
+  
+  <!-- Gráfico FIXO -->
+  <div class="section-title">
+    <h2>Distribuição de Bots</h2>
+    <p>Por departamento (dados consolidados)</p>
+  </div>
+  
+  <div class="chart-card">
+    <canvas id="departmentChart"></canvas>
+  </div>
+  <div class="filters-card">
+
+  </div>
+    <!-- Seção de Filtros (afeta apenas gráficos dinâmicos) -->
+    <div class="filters-card">
+        <h2>Filtros de Período</h2>
+        <form id="dashboardFilters" class="dashboard-filters">
+            <div class="filter-group">
+            <label>Data Início:</label>
+            <input type="date" name="start_date" value="{{ start_date }}">
+            </div>
+            <div class="filter-group">
+            <label>Data Fim:</label>
+            <input type="date" name="end_date" value="{{ end_date }}">
+            </div>
+            <button type="submit" class="filter-button">
+            <span class="icon">🔍</span> Aplicar Filtros
+            </button>
+        </form>
+        </div>
+
+  <!-- Seção de Gráficos DINÂMICOS -->
+  <div class="section-title">
+    <h2>Métricas de Execução</h2>
+    <p>Dados filtrados por período selecionado</p>
+  </div>
+  
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Status das Execuções</h3>
+      <canvas id="statusChart"></canvas>
+    </div>
+    
+    <div class="chart-card full-width">
+      <h3>Tempo Total de Execução por Bot (horas)</h3>
+      <canvas id="executionTimeChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Gráfico FIXO - Bots por Departamento
+  const departmentCtx = document.getElementById('departmentChart').getContext('2d');
+  const departmentChart = new Chart(departmentCtx, {
+    type: 'bar',
+    data: {
+      labels: {{ departments_json|safe }},
+      datasets: [{
+        label: 'Bots por Departamento',
+        data: {{ department_counts_json|safe }},
+        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1
+          }
+        }
+      }
+    }
+  });
+
+  // Gráfico DINÂMICO - Status das Execuções
+  const statusCtx = document.getElementById('statusChart').getContext('2d');
+  const statusChart = new Chart(statusCtx, {
+    type: 'doughnut',
+    data: {
+      labels: {{ status_labels_json|safe }},
+      datasets: [{
+        data: {{ status_counts_json|safe }},
+        backgroundColor: [
+          'rgba(255, 99, 132, 0.7)',
+          'rgba(75, 192, 192, 0.7)',
+          'rgba(255, 205, 86, 0.7)'
+        ],
+        borderColor: [
+          'rgba(255, 99, 132, 1)',
+          'rgba(75, 192, 192, 1)',
+          'rgba(255, 205, 86, 1)'
+        ],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom'
+        }
+      }
+    }
+  });
+
+  // Gráfico DINÂMICO - Tempo de Execução
+  const executionCtx = document.getElementById('executionTimeChart').getContext('2d');
+  const executionTimeChart = new Chart(executionCtx, {
+    type: 'bar',
+    data: {
+      labels: {{ bot_names_json|safe }},
+      datasets: [{
+        label: 'Horas de Execução',
+        data: {{ bot_durations_json|safe }},
+        backgroundColor: 'rgba(153, 102, 255, 0.7)',
+        borderColor: 'rgba(153, 102, 255, 1)',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          display: false
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: 'Horas'
+          }
+        }
+      }
+    }
+  });
+</script>
+
+<style>
+  .section-title {
+    margin: 30px 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  
+  .section-title h2 {
+    margin: 0;
+    color: var(--text);
+  }
+  
+  .section-title p {
+    margin: 5px 0 0 0;
+    font-size: 14px;
+    color: var(--text-light);
+  }
+  
+  /* Restante dos estilos mantido igual */
+</style>
+{% endblock %}
