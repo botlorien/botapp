@@ -1,3 +1,4 @@
+import re
 from .models import Bot, Task
 from .decorators import task
 from django.db import connection
@@ -46,10 +47,13 @@ class BotApp:
     def _get_or_create_task(self, func):
         if self.bot_instance is None:
             raise Exception("Bot not set. Call app.set_bot first.")
+        
+        # Substitui qualquer caractere que não seja alfanumérico por espaço
+        cleaned_name = re.sub(r'[^a-zA-Z0-9]', ' ', func.__name__)
 
         task, created = Task.objects.get_or_create(
             bot=self.bot_instance,
-            name=func.__name__,
+            name=cleaned_name,
             defaults={'description': func.__doc__ or ''}
         )
 
