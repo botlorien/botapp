@@ -10,7 +10,7 @@ setup(
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     author='Seu Nome',
-    author_email='seuemail@exemplo.com',
+    author_email='botlorien@gmail.com',
     classifiers=[
         'Framework :: Django',
         'Programming Language :: Python :: 3',
@@ -19,9 +19,11 @@ setup(
     ],
     install_requires=[
         'Django>=3.2',
-        'botenv>=0.1.0',
         'psycopg2-binary=2.9.10',
         'django-admin-rangefilter',
+        'openpyxl',
+        'python-dotenv>=1.0.0',
+        'xhtml2pdf>=0.2.5',
     ],
     python_requires='>=3.8',
 )
