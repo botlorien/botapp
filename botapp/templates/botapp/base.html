@@ -31,6 +31,7 @@
         
         <!-- Navegação -->
         <nav class="header-nav">
+          {% if user.is_authenticated %}
             <a href="{% url 'dashboard' %}" class="nav-link">
                 <i class="bi bi-speedometer2"></i>
                 <span>Dashboard</span>
@@ -56,14 +57,7 @@
               </button>
           </div>
             
-            <!-- Botão Alternar Tema -->
-            <button id="toggle-theme" class="toggle-theme">
-                <i class="bi {% if request.COOKIES.theme == 'dark' %}bi-sun-fill{% else %}bi-moon-fill{% endif %} theme-icon"></i>
-                <span class="theme-text">Alternar Tema</span>
-            </button>
-
             <!-- Botão de Logout -->
-            {% if user.is_authenticated %}
             <form action="{% url 'logout' %}" method="post" class="logout-form">
                 {% csrf_token %}
                 <button type="submit" class="logout-button">
@@ -72,6 +66,11 @@
                 </button>
             </form>
             {% endif %}
+            <!-- Botão Alternar Tema -->
+            <button id="toggle-theme" class="toggle-theme">
+              <i class="bi {% if request.COOKIES.theme == 'dark' %}bi-sun-fill{% else %}bi-moon-fill{% endif %} theme-icon"></i>
+              <span class="theme-text">Alternar Tema</span>
+          </button>
         </nav>
     </div>
     {% endblock %}
