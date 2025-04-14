@@ -74,7 +74,7 @@ def task(app, func=None):
         try:
             result = func(*args, **kwargs)
             log.status = TaskLog.Status.COMPLETED
-            log.result_data = {'return': result}
+            log.result_data = {'return': str(result)}
         except Exception as e:
             log.status = TaskLog.Status.FAILED
             log.error_message = traceback.format_exc()
