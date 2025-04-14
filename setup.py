@@ -7,9 +7,9 @@ setup(
     include_package_data=True,
     license='MIT',
     description='Pacote Django para gerenciamento de bots e tarefas de RPA',
-    long_description=open('README.md').read(),
+    long_description=open('README.md', encoding='utf-8').read(),
     long_description_content_type='text/markdown',
-    author='Seu Nome',
+    author='Ben-Hur P. B. Santos',
     author_email='botlorien@gmail.com',
     classifiers=[
         'Framework :: Django',
