@@ -13,7 +13,9 @@ class BotApp:
         self.bot_instance = None
 
     def set_bot(self, bot_name, bot_description, bot_version, bot_department):
-        bot_name = str(bot_name).strip().capitalize()
+        # Substitui qualquer caractere que não seja alfanumérico por espaço
+        cleaned_name = re.sub(r'[^a-zA-Z0-9]', ' ', bot_name)
+        bot_name = str(cleaned_name).strip().capitalize()
         bot_description = str(bot_description).strip().capitalize()
         bot_version = str(bot_version).strip()
         bot_department = str(bot_department).strip().upper()
@@ -47,13 +49,10 @@ class BotApp:
     def _get_or_create_task(self, func):
         if self.bot_instance is None:
             raise Exception("Bot not set. Call app.set_bot first.")
-        
-        # Substitui qualquer caractere que não seja alfanumérico por espaço
-        cleaned_name = re.sub(r'[^a-zA-Z0-9]', ' ', func.__name__)
 
         task, created = Task.objects.get_or_create(
             bot=self.bot_instance,
-            name=cleaned_name,
+            name=func.__name__,
             defaults={'description': func.__doc__ or ''}
         )
 
