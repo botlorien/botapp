@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='botapp',
-    version='0.1.7',
+    version='0.1.8',
     packages=find_packages(),
     include_package_data=True,  # Inclui arquivos de dados especificados no MANIFEST.in
     license='MIT',
