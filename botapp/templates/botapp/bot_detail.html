@@ -59,6 +59,7 @@
     <table class="log-table">
       <thead>
         <tr>
+          <th>Tarefa</th>
           <th>Status</th>
           <th>Início</th>
           <th>Fim</th>
@@ -72,6 +73,7 @@
       <tbody>
         {% for log in logs %}
         <tr class="log-row {% cycle 'odd' 'even' %}">
+          <td>{{ log.task|default:"-" }}</td>
           <td>
             <span class="badge status-{{ log.status|default:'unknown'|lower }}"></span>
             {{ log.status|default:"-" }}
@@ -133,110 +135,101 @@
   <!-- Modal para detalhes do log -->
   <div id="logModal" class="modal">
     <div class="modal-content">
-      <span class="close-modal">&times;</span>
-      <div id="logDetails"></div>
+      <div class="modal-header">
+        <h2>Detalhes do Log</h2>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body" id="logDetails">
+        <!-- O conteúdo será inserido aqui pelo JavaScript -->
+      </div>
     </div>
   </div>
-</div>
 
 <script>
-    function showLogDetails(logId) {
-      // Faz a requisição para a view log_detail
-      fetch(`/log/${logId}/`, {
-        headers: {
-          'X-Requested-With': 'XMLHttpRequest'
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        // Formata os dados para exibição
-        const formattedData = `
-          <h3>Detalhes do Log #${data.id}</h3>
-          <div class="log-detail-grid">
-            <div class="detail-item">
-              <span class="detail-label">Status:</span>
-              <span class="detail-value">${data.status || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Início:</span>
-              <span class="detail-value">${data.start_time || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Fim:</span>
-              <span class="detail-value">${data.end_time || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Duração:</span>
-              <span class="detail-value">${data.duration || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Mensagem de Erro:</span>
-              <span class="detail-value">${data.error_message || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Tipo de Exceção:</span>
-              <span class="detail-value">${data.exception_type || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Diretório do Bot:</span>
-              <span class="detail-value">${data.bot_dir || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Sistema Operacional:</span>
-              <span class="detail-value">${data.os_platform || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Versão Python:</span>
-              <span class="detail-value">${data.python_version || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">IP do Host:</span>
-              <span class="detail-value">${data.host_ip || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Nome do Host:</span>
-              <span class="detail-value">${data.host_name || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Usuário:</span>
-              <span class="detail-value">${data.user_login || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">PID:</span>
-              <span class="detail-value">${data.pid || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Acionamento Manual:</span>
-              <span class="detail-value">${data.manual_trigger ? 'Sim' : 'Não'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Fonte do Acionamento:</span>
-              <span class="detail-value">${data.trigger_source || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <span class="detail-label">Ambiente:</span>
-              <span class="detail-value">${data.env || '-'}</span>
-            </div>
-            ${data.result_data ? `
-              <div class="detail-item full-width">
-                <span class="detail-label">Dados de Resultado:</span>
-                <pre class="detail-value">${JSON.stringify(data.result_data, null, 2)}</pre>
-              </div>
-            ` : ''}
-          </div>
-        `;
-        
-        document.getElementById('logDetails').innerHTML = formattedData;
-        document.getElementById('logModal').style.display = 'block';
-      })
-      .catch(error => {
-        document.getElementById('logDetails').innerHTML = `
-          <h3>Erro ao carregar detalhes</h3>
-          <p>Não foi possível carregar os detalhes deste log.</p>
-        `;
-        document.getElementById('logModal').style.display = 'block';
-      });
+function showLogDetails(logId) {
+  // Mostra um loader enquanto carrega
+  document.getElementById('logDetails').innerHTML = `
+    <div class="loading-spinner">
+      <div></div><div></div><div></div><div></div>
+    </div>
+    <p>Carregando detalhes do log...</p>
+  `;
+  document.getElementById('logModal').style.display = 'block';
+  
+  // Faz a requisição
+  fetch(`/log/${logId}/`, {
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(response => response.json())
+  .then(data => {
+    // Formata os dados para exibição
+    const formattedData = formatLogData(data);
+    document.getElementById('logDetails').innerHTML = formattedData;
+    
+    // Ajusta a posição da modal em telas pequenas
+    if (window.innerWidth < 768) {
+      document.querySelector('.modal-content').scrollTop = 0;
     }
+  })
+  .catch(error => {
+    document.getElementById('logDetails').innerHTML = `
+      <div class="error-message">
+        <h3>Erro ao carregar detalhes</h3>
+        <p>Não foi possível carregar os detalhes deste log.</p>
+        <button onclick="showLogDetails(${logId})">Tentar novamente</button>
+      </div>
+    `;
+  });
+}
+
+// Função auxiliar para formatar os dados do log
+function formatLogData(data) {
+  // Cria um array com todos os itens de detalhe
+  const detailItems = [
+    { label: 'Tarefa', value: data.task || '-' },
+    { label: 'Descrição', value: data.description || '-' },
+    { label: 'Status', value: data.status || '-' },
+    { label: 'Início', value: data.start_time || '-' },
+    { label: 'Fim', value: data.end_time || '-' },
+    { label: 'Duração', value: data.duration || '-' },
+    { label: 'Mensagem de Erro', value: data.error_message || '-' },
+    { label: 'Tipo de Exceção', value: data.exception_type || '-' },
+    { label: 'Diretório do Bot', value: data.bot_dir || '-' },
+    { label: 'Sistema Operacional', value: data.os_platform || '-' },
+    { label: 'Versão Python', value: data.python_version || '-' },
+    { label: 'IP do Host', value: data.host_ip || '-' },
+    { label: 'Nome do Host', value: data.host_name || '-' },
+    { label: 'Usuário', value: data.user_login || '-' },
+    { label: 'PID', value: data.pid || '-' },
+    { label: 'Acionamento Manual', value: data.manual_trigger ? 'Sim' : 'Não' },
+    { label: 'Fonte do Acionamento', value: data.trigger_source || '-' },
+    { label: 'Ambiente', value: data.env || '-' }
+  ];
+  
+  // Gera os elementos HTML para cada item
+  const detailsHTML = detailItems.map(item => `
+    <div class="detail-item">
+      <span class="detail-label">${item.label}:</span>
+      <span class="detail-value">${item.value}</span>
+    </div>
+  `).join('');
+  
+  // Adiciona os dados de resultado se existirem
+  const resultDataHTML = data.result_data ? `
+    <div class="detail-item full-width">
+      <span class="detail-label">Dados de Resultado:</span>
+      <pre class="detail-value">${JSON.stringify(data.result_data, null, 2)}</pre>
+    </div>
+  ` : '';
+  
+  return `
+    <h3>Detalhes do Log #${data.id}</h3>
+    <div class="log-detail-grid">
+      ${detailsHTML}
+      ${resultDataHTML}
+    </div>
+  `;
+}
   
     // Mantém os listeners para fechar o modal
     document.querySelector('.close-modal').addEventListener('click', function() {
@@ -248,6 +241,23 @@
         document.getElementById('logModal').style.display = 'none';
       }
     });
+
+    // Adicione este código ao abrir a modal
+function adjustModalForMobile() {
+  const modalContent = document.querySelector('.modal-content');
+  if (window.innerWidth < 768) {
+    modalContent.style.maxWidth = '95vw';
+    modalContent.style.margin = '2% auto';
+    modalContent.style.padding = '10px';
+  } else {
+    modalContent.style.maxWidth = '800px';
+    modalContent.style.margin = '5% auto';
+    modalContent.style.padding = '20px';
+  }
+}
+
+// Chame esta função quando abrir a modal e no resize da janela
+window.addEventListener('resize', adjustModalForMobile);
   </script>
   <script>
     // Toggle bot status

@@ -138,6 +138,8 @@ def log_detail(request, log_id):
         # Se for uma requisição AJAX, retorna JSON
         data = {
             'id': log.id,
+            'task': log.task.name,
+            'description': log.task.description,
             'status': log.status,
             'start_time': log.start_time.strftime("%d/%m/%Y %H:%M") if log.start_time else None,
             'end_time': log.end_time.strftime("%d/%m/%Y %H:%M") if log.end_time else None,
