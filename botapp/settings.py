@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-DEBUG = True
+DEBUG = os.getenv('BOTAPP_DEBUG', 'True') == 'True'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 

@@ -17,6 +17,7 @@ O `botapp` utiliza variáveis de ambiente para configurar seu comportamento. Aba
 ### 🔐 Variáveis de Ambiente
 DJANGO_SETTINGS_MODULE: Caminho do modulo settings. Default 'botapp.settings'
 
+BOTAPP_DEBUG: Modo de execução do servidor. Default 'True'
 BOTAPP_SECRET_KEY: Chave secreta para o projeto django. Default 'chave-super-secreta-para-dev'
 BOTAPP_ALLOWED_HOSTS: Lista de hosts permitidos. Default "['*']"
 BOTAPP_PORT_ADMIN: Porta para rodar os servidor para os paineis administrativos. Default 8000
