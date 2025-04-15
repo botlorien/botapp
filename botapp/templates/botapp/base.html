@@ -29,6 +29,11 @@
             </a>
         </div>
         
+        <!-- Botão do Menu Mobile -->
+        <button class="mobile-menu-button" aria-label="Abrir Menu">
+            <i class="bi bi-list"></i>
+        </button>
+
         <!-- Navegação -->
         <nav class="header-nav">
           {% if user.is_authenticated %}
@@ -36,7 +41,6 @@
                 <i class="bi bi-speedometer2"></i>
                 <span>Dashboard</span>
             </a>
-
             <!-- Controle de Atualização Automática -->
             <div class="auto-refresh-control">
               <span>Refresh</span>
@@ -74,7 +78,8 @@
         </nav>
     </div>
     {% endblock %}
-  </header>
+</header>
+
 
   <main class="container">
     {% block content %}{% endblock %}
@@ -119,6 +124,29 @@
               }
           });
       });
+
+      // Adicione ao seu bloco extrascripts
+      document.addEventListener('DOMContentLoaded', function() {
+  const mobileMenuButton = document.querySelector('.mobile-menu-button');
+  const headerNav = document.querySelector('.header-nav');
+  
+  if (mobileMenuButton && headerNav) {
+    mobileMenuButton.addEventListener('click', function() {
+      headerNav.classList.toggle('mobile-visible');
+      this.classList.toggle('active');
+    });
+  }
+  
+  // Ajusta o header quando a janela é redimensionada
+  function handleResize() {
+    if (window.innerWidth > 768) {
+      headerNav.classList.remove('mobile-visible');
+      mobileMenuButton.classList.remove('active');
+    }
+  }
+  
+  window.addEventListener('resize', handleResize);
+});
   </script>
     
   <!-- Bloco para scripts adicionais -->
