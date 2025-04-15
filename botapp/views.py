@@ -119,6 +119,8 @@ def bot_detail(request, bot_id):
         except ValueError:
             pass
 
+    logs = logs.order_by('-start_time')
+
     # Paginação
     paginator = Paginator(logs, 25)  # Mostra 25 logs por página
     page_number = request.GET.get('page')
