@@ -62,6 +62,8 @@ BOTAPP_DEPLOY_ENV: Nome do ambiente de deploy eg. Desenvolvimento, Homologação
 
 BOTAPP_FORCE_URL_PREFIX: Força prefixo de rota. Default 'botapp' para DEBUG=False
 
+BOTAPP_AUTOINIT: Variável para definir modo de inicialização do pacote. Default standalone '1', se for usar o pacote dentro de outro projeto Django definir '0'
+
 Você pode definir essas variáveis diretamente no ambiente ou utilizando um arquivo `.env` na raiz do projeto.
 
 ## 🚀 Uso
