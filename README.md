@@ -26,6 +26,24 @@ BOTAPP_SUPERUSER_USERNAME: Usuario para o superuser. Default 'admin'
 BOTAPP_SUPERUSER_EMAIL: Email do superuser. Default 'admin@example.com'
 BOTAPP_SUPERUSER_PASSWORD: Senha do superuser. Default 'admin123'
 
+BOTAPP_DATABASES: (Opcional) Dicionario padrão Django de configuração do banco de dados. Default configuração Postgresl 
+Eg:
+```python
+    BOTAPP_DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('PG_BOTAPP_DBNAME'),      # nome do banco
+            'USER':  os.environ.get('PG_BOTAPP_USER'),        # seu usuário do Postgres
+            'PASSWORD':  os.environ.get('PG_BOTAPP_PASSWORD'),      # sua senha
+            'HOST':  os.environ.get('PG_BOTAPP_HOST'),          # ou IP do servidor
+            'PORT':  os.environ.get('PG_BOTAPP_PORT'),               # porta padrão do Postgres
+            'OPTIONS': {
+                'options': f'-c search_path={PG_BOTAPP_SCHEMA}' # Schema do banco de dados Postgres
+            }
+        }
+    }
+````
+
 PG_BOTAPP_SCHEMA: Nome do schema no banco de dados Postgresql para criar as tabelas. Default 'botapp_schema'
 PG_BOTAPP_DBNAME: Nome do database do banco de dados Postgresql
 PG_BOTAPP_USER: Usuario do banco de dados Postgresql
@@ -42,6 +60,8 @@ BOTAPP_DEFAULT_FROM_EMAIL: Nome de exibição dos emails enviados
 
 BOTAPP_DEPLOY_ENV: Nome do ambiente de deploy eg. Desenvolvimento, Homologação, Produção.
 
+BOTAPP_FORCE_URL_PREFIX: Força prefixo de rota. Default 'botapp' para DEBUG=False
+
 Você pode definir essas variáveis diretamente no ambiente ou utilizando um arquivo `.env` na raiz do projeto.
 
 ## 🚀 Uso
@@ -49,18 +69,15 @@ Você pode definir essas variáveis diretamente no ambiente ou utilizando um arq
 Após configurar as variáveis de ambiente, inicie a aplicação com o seguinte comando:
 
 ```bash
-from botapp import BotApp
-app = BotApp('<SeuDatabase>') # substitua '<SeuDatabase>' pelo DBNAME do banco de dados
-app.open_admin()
+botapp setup # cria a estrutura no banco de dados, usuario admin para acesso ao dashboard
+botapp runserver # Inicia o servidor http para acesso ao dashboard
 ```
 
 A interface administrativa estará disponível em:
 
 ```
-http://0.0.0.0:<BOTAPP_PORT_ADMIN>/admin
+http://localhost:8000/admin/
 ```
-
-Substitua  `<BOTAPP_PORT_ADMIN>` pelos valores configurados nas variáveis de ambiente.
 
 ## 🖼️ Capturas de Tela
 
