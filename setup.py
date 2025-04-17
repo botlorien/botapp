@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='botapp',
-    version='0.1.11',
+    version='0.1.12',
     packages=find_packages(),
     include_package_data=True,  # Inclui arquivos de dados especificados no MANIFEST.in
     license='MIT',
@@ -27,6 +27,11 @@ setup(
         'whitenoise',
     ],
     python_requires='>=3.8',
+    entry_points={
+    'console_scripts': [
+        'botapp=botapp.manage:main',
+    ],
+},
 )
 
 # pip install setuptools

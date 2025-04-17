@@ -5,8 +5,11 @@ from django.contrib.auth.views import LoginView
 from django.contrib.auth import views as auth_views
 from django.conf.urls.static import static
 from django.conf import settings
+from django.views.generic.base import RedirectView
+
 
 urlpatterns = [
+    path('', RedirectView.as_view(url='/bots/', permanent=False), name='root_redirect'),
     path('admin/', admin.site.urls),
     path('bots/', views.bot_list, name='bot_list'),
     path('bots/<int:bot_id>/', views.bot_detail, name='bot_detail'),

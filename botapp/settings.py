@@ -27,19 +27,21 @@ ROOT_URLCONF = 'botapp.urls'
 
 
 # settings.py
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',  # ❗ ESTA LINHA ESTAVA FALTANDO
-        'NAME': os.environ.get('PG_BOTAPP_DBNAME'),      # nome do banco
-        'USER':  os.environ.get('PG_BOTAPP_USER'),        # seu usuário do Postgres
-        'PASSWORD':  os.environ.get('PG_BOTAPP_PASSWORD'),      # sua senha
-        'HOST':  os.environ.get('PG_BOTAPP_HOST'),          # ou IP do servidor
-        'PORT':  os.environ.get('PG_BOTAPP_PORT'),               # porta padrão do Postgres
-        'OPTIONS': {
-            'options': f'-c search_path={DATABASE_SCHEMA}'
+DATABASES: str | dict | None = os.getenv('BOTAPP_DATABASES')
+if not DATABASES:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('PG_BOTAPP_DBNAME'),      # nome do banco
+            'USER':  os.environ.get('PG_BOTAPP_USER'),        # seu usuário do Postgres
+            'PASSWORD':  os.environ.get('PG_BOTAPP_PASSWORD'),      # sua senha
+            'HOST':  os.environ.get('PG_BOTAPP_HOST'),          # ou IP do servidor
+            'PORT':  os.environ.get('PG_BOTAPP_PORT'),               # porta padrão do Postgres
+            'OPTIONS': {
+                'options': f'-c search_path={DATABASE_SCHEMA}'
+            }
         }
     }
-}
 
 MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -47,7 +49,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',  # ✅ ESSENCIAL!
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -55,12 +57,12 @@ MIDDLEWARE = [
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],  # ou você pode adicionar seus templates personalizados aqui
-        'APP_DIRS': True,  # ✅ ESSENCIAL para o admin funcionar
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
-                'django.template.context_processors.request',  # ✅ NECESSÁRIO pro admin funcionar
+                'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
             ],
@@ -71,14 +73,6 @@ TEMPLATES = [
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-STATIC_URL = '/static/'
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "static"),
-]
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('BOTAPP_EMAIL_HOST')
 EMAIL_PORT = os.getenv('BOTAPP_EMAIL_PORT', 587)  # Porta padrão para TLS
@@ -87,6 +81,25 @@ EMAIL_HOST_PASSWORD = os.getenv('BOTAPP_EMAIL_PASSWORD')
 EMAIL_USE_TLS = os.getenv('BOTAPP_EMAIL_USE_TLS', 'True') == 'True'
 DEFAULT_FROM_EMAIL = os.getenv('BOTAPP_DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
-LOGIN_URL = '/accounts/login/'  # Ou sua URL de login personalizada
-LOGIN_REDIRECT_URL = '/bots/'  # Ou qualquer outra view que você queira redirecionar
-LOGOUT_REDIRECT_URL = '/accounts/login/'     # Redireciona para a página de login após logout
+BOTAPP_FORCE_URL_PREFIX = os.getenv('BOTAPP_FORCE_URL_PREFIX', 'botapp')
+
+if BOTAPP_FORCE_URL_PREFIX:
+    BOTAPP_FORCE_URL_PREFIX = BOTAPP_FORCE_URL_PREFIX.strip('/')
+    BOTAPP_FORCE_URL_PREFIX = '/' + BOTAPP_FORCE_URL_PREFIX + '/'
+
+if DEBUG:
+    BOTAPP_FORCE_URL_PREFIX = '/'
+
+STATIC_URL = BOTAPP_FORCE_URL_PREFIX + 'static/'
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "static"),
+]
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+LOGIN_URL = BOTAPP_FORCE_URL_PREFIX + 'accounts/login/'
+LOGIN_REDIRECT_URL = BOTAPP_FORCE_URL_PREFIX + 'bots/'
+LOGOUT_REDIRECT_URL = BOTAPP_FORCE_URL_PREFIX + 'accounts/login/'
+
+
+FORCE_SCRIPT_NAME = BOTAPP_FORCE_URL_PREFIX
