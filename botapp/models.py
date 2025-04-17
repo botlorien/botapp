@@ -12,6 +12,7 @@ class Bot(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        app_label = 'botapp'
         verbose_name = "Bot"
         verbose_name_plural = "Bots"
 
@@ -27,6 +28,7 @@ class Task(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
+        app_label = 'botapp'
         verbose_name = "Tarefa"
         verbose_name_plural = "Tarefas"
 
@@ -60,6 +62,7 @@ class TaskLog(models.Model):
     env = models.CharField(max_length=50, null=True, blank=True)
 
     class Meta:
+        app_label = 'botapp'
         verbose_name = "Log de Tarefa"
         verbose_name_plural = "Logs de Tarefas"
 
