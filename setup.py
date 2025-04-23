@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='botapp',
-    version='0.1.14',
+    version='0.1.24',
     packages=find_packages(),
     include_package_data=True,  # Inclui arquivos de dados especificados no MANIFEST.in
     license='MIT',
@@ -25,6 +25,8 @@ setup(
         'python-dotenv>=1.0.0',
         'xhtml2pdf>=0.2.5',
         'whitenoise',
+        'djangorestframework',
+        'requests',
     ],
     python_requires='>=3.8',
     entry_points={
