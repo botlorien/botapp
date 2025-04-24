@@ -1,14 +1,19 @@
 import os
+import json
 from dotenv import load_dotenv
 
 load_dotenv()
-DEBUG = os.getenv('BOTAPP_DEBUG', 'True') == 'True'
+DEBUG = os.getenv('BOTAPP_DEBUG', 'False').lower() == 'true'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 print(f"BASE_DIR: {BASE_DIR}")
 print(f"DEBUG: {DEBUG}")
 
 SECRET_KEY = os.getenv("BOTAPP_SECRET_KEY", 'chave-super-secreta-para-dev')
+
+if not DEBUG and SECRET_KEY == 'chave-super-secreta-para-dev':
+    raise Exception("SECRET_KEY fraco em produção!")
+
 ALLOWED_HOSTS = os.getenv("BOTAPP_ALLOWED_HOSTS", '*').split(',')
 PORT_ADMIN = os.getenv("BOTAPP_PORT_ADMIN", 8000)
 DATABASE_SCHEMA = os.getenv("PG_BOTAPP_SCHEMA", 'botapp_schema')
@@ -37,9 +42,11 @@ ROOT_URLCONF = 'botapp.urls'
 DATABASES: str | dict | None = os.getenv('BOTAPP_DATABASES')
 if DATABASES:
     try:
-        DATABASES = eval(DATABASES)
-    except Exception as e:
-        print(f"Erro ao avaliar DATABASES: {e}")
+        # NUNCA use eval com input externo!
+        DATABASES = json.loads(DATABASES)  # ✅ mais seguro
+    except json.JSONDecodeError:
+        print("DATABASES inválido")
+
         DATABASES = None
 if not DATABASES:
     DATABASES = {
@@ -59,6 +66,8 @@ if not DATABASES:
 MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'botapp.middleware.rate_limit_middleware.RateLimitMiddleware',
+    #'botapp.middleware.csp.CSPMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -83,6 +92,13 @@ TEMPLATES = [
     },
 ]
 
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
 
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
@@ -105,32 +121,30 @@ EMAIL_HOST_PASSWORD = os.getenv('BOTAPP_EMAIL_PASSWORD')
 EMAIL_USE_TLS = os.getenv('BOTAPP_EMAIL_USE_TLS', 'True') == 'True'
 DEFAULT_FROM_EMAIL = os.getenv('BOTAPP_DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
-# BOTAPP_FORCE_URL_PREFIX = os.getenv('BOTAPP_FORCE_URL_PREFIX', 'botapp').strip()
+if not DEBUG:
+    SECURE_HSTS_SECONDS = 3600
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'  # ou SAMEORIGIN se usar iframe internamente
 
-# if BOTAPP_FORCE_URL_PREFIX:
-#     BOTAPP_FORCE_URL_PREFIX = BOTAPP_FORCE_URL_PREFIX.strip('/')
-#     BOTAPP_FORCE_URL_PREFIX = '/' + BOTAPP_FORCE_URL_PREFIX + '/'
 
-# if DEBUG:
-#     BOTAPP_FORCE_URL_PREFIX = '/'
-
-BOTAPP_FORCE_URL_PREFIX = '/'
-
-STATIC_URL = BOTAPP_FORCE_URL_PREFIX + 'static/'
-print(f"STATIC_URL: {STATIC_URL}")
+STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
+
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-LOGIN_URL = BOTAPP_FORCE_URL_PREFIX + 'accounts/login/'
-LOGIN_REDIRECT_URL = BOTAPP_FORCE_URL_PREFIX + 'bots/'
-LOGOUT_REDIRECT_URL = BOTAPP_FORCE_URL_PREFIX + 'accounts/login/'
-
-
-#FORCE_SCRIPT_NAME = BOTAPP_FORCE_URL_PREFIX if BOTAPP_FORCE_URL_PREFIX != '/' else None
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/bots/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
