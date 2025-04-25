@@ -1,0 +1,5 @@
+botapp==0.2.4
+djangorestframework
+requests
+gunicorn
+redis
