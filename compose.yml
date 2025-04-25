@@ -33,12 +33,6 @@ services:
 
     networks:
       - botapp-net
-  redis:
-    image: redis:alpine
-    container_name: botapp-redis
-    restart: always
-    networks:
-      - botapp-net
 
 # Traefik configuration for reverse proxy
     # labels:
@@ -48,6 +42,12 @@ services:
     #   - "traefik.http.routers.botapp.tls=true"
     #   - "traefik.http.services.botapp.loadbalancer.server.port=8000"
 
+  redis:
+    image: redis:alpine
+    container_name: botapp-redis
+    restart: always
+    networks:
+      - botapp-net
 
 networks:
   botapp-net:
