@@ -104,8 +104,7 @@ Abaixo estão algumas capturas de tela das páginas do sistema:
 Para executar os testes da aplicação, utilize:
 
 ```bash
-python test.py
-python test_open_admin.py
+python example.py
 ```
 
 Certifique-se de que todas as dependências estejam instaladas e que as variáveis de ambiente estejam corretamente configuradas antes de executar os testes.

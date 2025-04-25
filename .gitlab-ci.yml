@@ -1,0 +1,82 @@
+
+stages:
+  - deploy
+workflow:
+  rules:
+    # Regra para verificar se a variável EXECUTE_PIPELINE é definida como "true"
+    - if: '$EXECUTE_PIPELINE == "true"'
+    #- when: never  # Não executa por padrão a cada commit
+deploy:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - apk add --no-cache curl openssh-client sshpass docker-compose sudo  # Instala dependências necessárias
+    # Testa conexão SSH
+    - |
+      sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no "$SSH_USER@$SSH_SERVER" <<EOF
+        export PG_BOTAPP_DBNAME="$PG_BOTAPP_DBNAME"
+        export PG_BOTAPP_USER="$PG_BOTAPP_USER"
+        export PG_BOTAPP_PASSWORD="$PG_BOTAPP_PASSWORD"
+        export PG_BOTAPP_HOST="$PG_BOTAPP_HOST"
+        export PG_BOTAPP_PORT="$PG_BOTAPP_PORT"
+
+        export BOTAPP_EMAIL_HOST="$BOTAPP_EMAIL_HOST"
+        export BOTAPP_EMAIL_PORT="$BOTAPP_EMAIL_PORT"
+        export BOTAPP_EMAIL_USER="$BOTAPP_EMAIL_USER"
+        export BOTAPP_EMAIL_PASSWORD="$BOTAPP_EMAIL_PASSWORD"
+
+        export BOTAPP_DEBUG="$BOTAPP_DEBUG"
+        export BOTAPP_ENV="$BOTAPP_ENV"
+        export BOTAPP_SECRET_KEY="$BOTAPP_SECRET_KEY"
+        export BOTAPP_ALLOWED_HOSTS="$BOTAPP_ALLOWED_HOSTS"
+        export BOTAPP_PORT_ADMIN="$BOTAPP_PORT_ADMIN"
+        export BOTAPP_CSRF_TRUSTED_ORIGINS="$BOTAPP_CSRF_TRUSTED_ORIGINS"
+        
+        
+        echo "Rodando no servidor remoto: $(hostname)"
+        echo "CI_PROJECT_PATH no local era: $CI_PROJECT_PATH"
+        echo "URL de clone via HTTP: $CI_REPOSITORY_URL"
+        
+        # Crie/Entre numa pasta que você queira para o projeto
+        ls
+        pwd
+        cd GitHub
+        rm -rf $CI_PROJECT_NAME
+        git clone $CI_REPOSITORY_URL 
+        cd $CI_PROJECT_NAME
+        ls
+        git branch -a
+        docker network create traefik || true
+        docker compose down && docker compose up --build --remove-orphans
+      EOF
+  after_script:
+      - |
+        # Logs para depuração
+        echo "CI_JOB_STATUS is: $CI_JOB_STATUS"
+        echo "GITLAB_USER_LOGIN is: $GITLAB_USER_LOGIN"  # Exibindo o nome do usuário
+  
+        # Verifica o status do job atual
+        if [[ "$CI_JOB_STATUS" == "success" ]]; then
+          STATUS="✅ Success"
+        else
+          STATUS="❌ Failed"
+        fi
+  
+        # Cria a mensagem a ser enviada ao Discord, incluindo o usuário
+        MESSAGE="**Pipeline Status:* $STATUS\n**Project:* $CI_PROJECT_NAME\n**Branch:* $CI_COMMIT_REF_NAME\n**Pipeline URL:* $CI_PIPELINE_URL\n**Triggered by:** $GITLAB_USER_LOGIN"
+  
+        # Logs para depuração
+        echo "Message to send: $MESSAGE"
+        echo "Webhook URL: $DISCORD_WEBHOOK_URL"
+  
+        # Verifica se a mensagem foi gerada corretamente
+        if [ -n "$MESSAGE" ]; then
+          # Envia a notificação ao Discord
+          curl -X POST -H 'Content-Type: application/json' \
+          -d "{\"content\": \"$MESSAGE\"}" \
+          "$DISCORD_WEBHOOK_URL"
+        else
+          echo "No message to send"
+        fi
+  tags:
+    - runner

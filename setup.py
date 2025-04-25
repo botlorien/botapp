@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='botapp',
-    version='0.2.0',
+    version='0.2.5',
     packages=find_packages(),
     include_package_data=True,  # Inclui arquivos de dados especificados no MANIFEST.in
     license='MIT',
@@ -27,13 +27,14 @@ setup(
         'whitenoise',
         'djangorestframework',
         'requests',
+        'django-ratelimit'
     ],
     python_requires='>=3.8',
     entry_points={
-    'console_scripts': [
-        'botapp=botapp.manage:main',
-    ],
-},
+        'console_scripts': [
+            'botapp=botapp.manage:main',
+        ],
+    },
 )
 
 # pip install setuptools

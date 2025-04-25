@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  botapp:
+    restart: always
+    user: root
+    build: .
+    container_name: botapp-dashboard
+    environment:
+        - PG_BOTAPP_DBNAME
+        - PG_BOTAPP_USER
+        - PG_BOTAPP_PASSWORD
+        - PG_BOTAPP_HOST
+        - PG_BOTAPP_PORT
+
+        - BOTAPP_EMAIL_HOST
+        - BOTAPP_EMAIL_PORT
+        - BOTAPP_EMAIL_USER
+        - BOTAPP_EMAIL_PASSWORD
+
+        - BOTAPP_DEBUG
+        - BOTAPP_ENV
+        - BOTAPP_SECRET_KEY
+        - BOTAPP_ALLOWED_HOSTS
+        - BOTAPP_PORT_ADMIN
+        - BOTAPP_CSRF_TRUSTED_ORIGINS
+
+    deploy:
+      resources:
+        limits:
+          memory: 3000M
+          cpus: '2'
+
+    networks:
+      - botapp-net
+  redis:
+    image: redis:alpine
+    container_name: botapp-redis
+    restart: always
+    networks:
+      - botapp-net
+
+# Traefik configuration for reverse proxy
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.botapp.rule=Host(`botapp-seu-dominio.duckdns.org`)"
+    #   - "traefik.http.routers.botapp.entrypoints=websecure"
+    #   - "traefik.http.routers.botapp.tls=true"
+    #   - "traefik.http.services.botapp.loadbalancer.server.port=8000"
+
+
+networks:
+  botapp-net:
+    driver: bridge
+

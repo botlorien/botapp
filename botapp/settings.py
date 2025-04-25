@@ -131,6 +131,7 @@ if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'  # ou SAMEORIGIN se usar iframe internamente
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 
 STATIC_URL = '/static/'
@@ -148,3 +149,24 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/bots/'
 LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+LANGUAGE_CODE = os.getenv('BOTAPP_LANGUAGE_CODE', 'pt-br')     # idioma (legendas, validações de formulários, etc.)
+TIME_ZONE = os.getenv('BOTAPP_TIME_ZONE', 'America/Cuiaba')  # fuso-horário para o Brasil
+USE_I18N = os.getenv('BOTAPP_TIME_ZONE', 'True').lower() == 'true'  # internacionalização (i18n)
+USE_TZ = os.getenv('BOTAPP_TIME_ZONE', 'False').lower() == 'true'  # timezone (tz)
+
+if not DEBUG:
+    CACHES = os.getenv('BOTAPP_CACHES')
+    if CACHES:
+        try:
+            CACHES = json.loads(CACHES)
+        except json.JSONDecodeError:
+            print("CACHE inválido")
+
+    if not CACHES:
+        CACHES: dict = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+                'LOCATION': 'redis://botapp-redis:6379/1',
+            }
+        }
