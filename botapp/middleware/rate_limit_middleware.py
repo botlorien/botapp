@@ -25,11 +25,11 @@ class RateLimitMiddleware:
 
     def __call__(self, request):
         protected_paths = ['/login/', '/accounts/login/', '/api/', '/admin/login/']
-        print(f"RateLimitMiddleware: Request path is {request.path}")
-        print(f"REMOTE_ADDR: {request.META.get('REMOTE_ADDR')}")
-        print(f"X-Forwarded-For: {request.META.get('HTTP_X_FORWARDED_FOR')}")
+        #print(f"RateLimitMiddleware: Request path is {request.path}")
+        #print(f"REMOTE_ADDR: {request.META.get('REMOTE_ADDR')}")
+        #print(f"X-Forwarded-For: {request.META.get('HTTP_X_FORWARDED_FOR')}")
         client_ip = get_client_ip(request)
-        print(f"Client IP: {client_ip}")
+        #print(f"Client IP: {client_ip}")
         request.META['RATELIMIT_KEY'] = client_ip  # força uso do IP customizado
         
         def ratelimit_key(group, req):

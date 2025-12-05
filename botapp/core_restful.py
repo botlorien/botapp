@@ -21,7 +21,7 @@ class BotAppRestful:
         self.bot_name = None
 
     def search_bot(self, bot_name):
-                # Check if bot exists
+        # Check if bot exists
         r = requests.get(f"{self.api_url}/bots/", params={'search': bot_name}, auth=HTTPBasicAuth(BOTAPP_API_USUARIO, BOTAPP_API_SENHA))
         bots = r.json()
         match = next((b for b in bots if b['name'] == bot_name), None)
@@ -43,7 +43,6 @@ class BotAppRestful:
         }
 
         match = self.search_bot(cleaned_name)
-        print(f"Bot found: {match}")
         if match:
             self.bot_instance = match
             # update if different

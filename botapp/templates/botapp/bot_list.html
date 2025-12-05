@@ -6,7 +6,7 @@
 {% block content %}
 <div class="bot-list-container">
   <div class="section-header">
-    <h1>Bots Disponíveis</h1>
+    <h1>Bots Disponíveis - {{ total_bots }}</h1>
     
     <form method="get" class="bot-filter-bar">
       <div class="filter-group">
@@ -35,6 +35,22 @@
           <option value="started" {% if request.GET.last_status == "started" %}selected{% endif %}>Iniciado</option>
           <option value="completed" {% if request.GET.last_status == "completed" %}selected{% endif %}>Completo</option>
           <option value="failed" {% if request.GET.last_status == "failed" %}selected{% endif %}>Falhou</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label>Início:</label>
+        <input type="date" name="start_date" value="{{ request.GET.start_date }}">
+      </div>
+      <div class="filter-group">
+        <label>Fim:</label>
+        <input type="date" name="end_date" value="{{ request.GET.end_date }}">
+      </div>
+      
+      <div class="filter-group">
+        <label>Tipo de Filtro:</label>
+        <select name="filter_mode">
+          <option value="in" {% if request.GET.filter_mode == "in" %}selected{% endif %}>Está dentro dos critérios</option>
+          <option value="not_in" {% if request.GET.filter_mode == "not_in" %}selected{% endif %}>Está fora dos critérios</option>
         </select>
       </div>
       

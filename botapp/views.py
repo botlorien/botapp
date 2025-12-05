@@ -20,62 +20,77 @@ def filter_bots(request):
     is_active = request.GET.get('is_active')
     last_status = request.GET.get('last_status')
     os_platform = request.GET.get("os_platform")
-    start = request.GET.get("start")
-    end = request.GET.get("end")
+    filter_mode = request.GET.get("filter_mode", "in")  # 'in' por padrão
 
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    if not start_date and not end_date:
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+
+    try:
+        start_date = datetime.strptime(start_date, '%Y-%m-%d')
+    except:
+        start_date = datetime.now() - timedelta(days=30)
+
+    try:
+        end_date = datetime.strptime(end_date, '%Y-%m-%d')
+    except:
+        end_date = datetime.now()
+
+    filters = Q()
     if name:
-        bots = bots.filter(name__icontains=name)
+        filters &= Q(name__icontains=name)
 
     if department:
-        bots = bots.filter(department__icontains=department)
+        filters &= Q(department__icontains=department)
 
     if is_active in ["true", "false"]:
-        bots = bots.filter(is_active=(is_active == "true"))
+        filters &= Q(is_active=(is_active == "true"))
 
-    if os_platform or start or end:
+    # Aplica os filtros de inclusão ou exclusão
+    if filter_mode == "not_in":
+        bots = bots.exclude(filters)
+    else:
+        bots = bots.filter(filters)
+
+    if os_platform or start_date or end_date:
         logs = TaskLog.objects.filter(task__bot__in=bots)
 
         if os_platform:
             logs = logs.filter(os_platform__icontains=os_platform)
 
-        if start and end:
-            try:
-                start_date = datetime.strptime(start, "%Y-%m-%d")
-                end_date = datetime.strptime(end, "%Y-%m-%d")
+        if start_date and end_date:
+            if start_date == end_date:
+                logs = logs.filter(start_time__date=start_date)
+            else:
+                logs = logs.filter(start_time__date__gte=start_date, end_time__date__lte=end_date)
+        elif start_date:
+            logs = logs.filter(start_time__date__gte=start_date)
+        elif end_date:
+            logs = logs.filter(end_time__date__lte=end_date)
 
-                # Caso as datas sejam iguais, ajusta o intervalo para o dia inteiro
-                if start_date == end_date:
-                    logs = logs.filter(start_time__date=start_date)
-                else:
-                    logs = logs.filter(start_time__date__gte=start_date, end_time__date__lte=end_date)
-            except ValueError:
-                pass
-        elif start:
-            try:
-                start_date = datetime.strptime(start, "%Y-%m-%d")
-                logs = logs.filter(start_time__date__gte=start_date)
-            except ValueError:
-                pass
-        elif end:
-            try:
-                end_date = datetime.strptime(end, "%Y-%m-%d")
-                logs = logs.filter(end_time__date__lte=end_date)
-            except ValueError:
-                pass
-
-        # filtra os bots com base nos logs encontrados
         bot_ids = logs.values_list("task__bot_id", flat=True).distinct()
-        bots = bots.filter(id__in=bot_ids)
 
-        # Último log e filtro por status de execução
+        # Aplica inclusão ou exclusão com base nos logs
+        if filter_mode == "not_in":
+            bots = bots.exclude(id__in=bot_ids)
+        else:
+            bots = bots.filter(id__in=bot_ids)
+
     filtered_bots = []
     for bot in bots:
         last_log = TaskLog.objects.filter(task__bot=bot).order_by('-start_time').first()
         bot.latest_status = last_log.status if last_log else None
 
         if last_status:
-            if bot.latest_status == last_status:
-                filtered_bots.append(bot)
+            if filter_mode == "not_in":
+                if bot.latest_status != last_status:
+                    filtered_bots.append(bot)
+            else:
+                if bot.latest_status == last_status:
+                    filtered_bots.append(bot)
         else:
             filtered_bots.append(bot)
 
@@ -84,7 +99,7 @@ def filter_bots(request):
 @login_required
 def bot_list(request):
     bots = filter_bots(request)
-    return render(request, "botapp/bot_list.html", {"bots": bots})
+    return render(request, "botapp/bot_list.html", {"bots": bots, "total_bots": len(bots)})
 
 @login_required
 def bot_detail(request, bot_id):

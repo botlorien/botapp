@@ -11,15 +11,15 @@ print(f"DEBUG: {DEBUG}")
 
 SECRET_KEY = os.getenv("BOTAPP_SECRET_KEY", 'chave-super-secreta-para-dev')
 
-if not DEBUG and SECRET_KEY == 'chave-super-secreta-para-dev':
-    raise Exception("SECRET_KEY fraco em produção!")
+# if not DEBUG and SECRET_KEY == 'chave-super-secreta-para-dev':
+#     raise Exception("SECRET_KEY fraco em produção!")
 
 ALLOWED_HOSTS = os.getenv("BOTAPP_ALLOWED_HOSTS", '*').split(',')
 PORT_ADMIN = os.getenv("BOTAPP_PORT_ADMIN", 8000)
 DATABASE_SCHEMA = os.getenv("PG_BOTAPP_SCHEMA", 'botapp_schema')
 
 if not DEBUG:
-    CSRF_TRUSTED_ORIGINS = os.getenv("BOTAPP_CSRF_TRUSTED_ORIGINS", "").split(',')
+    CSRF_TRUSTED_ORIGINS = os.getenv("BOTAPP_CSRF_TRUSTED_ORIGINS", "*").split(',')
 
 
 INSTALLED_APPS = [
@@ -115,7 +115,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('BOTAPP_EMAIL_HOST')
-EMAIL_PORT = os.getenv('BOTAPP_EMAIL_PORT', 587)  # Porta padrão para TLS
+EMAIL_PORT = os.getenv('BOTAPP_EMAIL_PORT', 587)
 EMAIL_HOST_USER = os.getenv('BOTAPP_EMAIL_USER')
 EMAIL_HOST_PASSWORD = os.getenv('BOTAPP_EMAIL_PASSWORD')
 EMAIL_USE_TLS = os.getenv('BOTAPP_EMAIL_USE_TLS', 'True') == 'True'
@@ -167,6 +167,20 @@ if not DEBUG:
         CACHES: dict = {
             'default': {
                 'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-                'LOCATION': 'redis://botapp-redis:6379/1',
+                'LOCATION': os.getenv("BOTAPP_REDIS_URL",'redis://botapp_redis:6379/1'),
             }
         }
+
+LOGGING = {
+  'version': 1,
+  'disable_existing_loggers': False,
+  'handlers': {
+    'console': {
+      'class': 'logging.StreamHandler',
+    },
+  },
+  'root': {
+    'handlers': ['console'],
+    'level': os.getenv("BOTAPP_LOGGING_LEVEL",'ERROR'),
+  },
+}
