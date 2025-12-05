@@ -102,8 +102,6 @@ def task_restful(app, func=None):
     @wraps(func)
     def wrapper(*args, **kwargs):
         app.bot_instance = app.search_bot(app.bot_name)
-        print("Bot instance:", app.bot_instance)
-        print("Bot instance is_active:", app.bot_instance.get('is_active', True))   
         if not app.bot_instance:
             raise Exception("Bot não foi definido. Use app.set_bot(...) antes de declarar tarefas.")
         if not app.bot_instance.get('is_active', True):

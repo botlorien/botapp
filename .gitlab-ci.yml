@@ -31,6 +31,7 @@ deploy:
         export BOTAPP_ALLOWED_HOSTS="$BOTAPP_ALLOWED_HOSTS"
         export BOTAPP_PORT_ADMIN="$BOTAPP_PORT_ADMIN"
         export BOTAPP_CSRF_TRUSTED_ORIGINS="$BOTAPP_CSRF_TRUSTED_ORIGINS"
+      
         
         
         echo "Rodando no servidor remoto: $(hostname)"

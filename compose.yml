@@ -24,6 +24,8 @@ services:
         - BOTAPP_ALLOWED_HOSTS
         - BOTAPP_PORT_ADMIN
         - BOTAPP_CSRF_TRUSTED_ORIGINS
+        - BOTAPP_LOGGING_LEVEL
+        - BOTAPP_REDIS_URL
 
     deploy:
       resources:
@@ -42,9 +44,8 @@ services:
     #   - "traefik.http.routers.botapp.tls=true"
     #   - "traefik.http.services.botapp.loadbalancer.server.port=8000"
 
-  redis:
+  botapp_redis:
     image: redis:alpine
-    container_name: botapp-redis
     restart: always
     networks:
       - botapp-net
