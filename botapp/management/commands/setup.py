@@ -49,6 +49,14 @@ class Command(BaseCommand):
             'password': os.getenv('BOTAPP_SUPERUSER_PASSWORD', 'admin123'),
         }
 
+        # Em produção (DEBUG=False), não permite o password default 'admin123'
+        if not settings.DEBUG and DEFAULT_SUPERUSER['password'] == 'admin123':
+            self.stdout.write(self.style.ERROR(
+                "❌ BOTAPP_SUPERUSER_PASSWORD não pode usar o default 'admin123' em produção. "
+                "Defina a variável de ambiente antes de rodar `botapp setup`."
+            ))
+            return
+
         try:
             if not User.objects.filter(username=DEFAULT_SUPERUSER['username']).exists():
                 User.objects.create_superuser(

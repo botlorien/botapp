@@ -1,0 +1,294 @@
+{% extends "botapp/base.html" %}
+{% load static %}
+
+{% block title %}Alertas | RPA Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Hero -->
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-bell-fill text-amber-400"></i> Alertas
+      </h1>
+      <p class="text-slate-400 mt-1">{{ total }} alerta(s) no filtro atual.</p>
+    </div>
+    {% if user.is_staff or user.is_superuser %}
+    <div class="flex items-center gap-2 flex-wrap">
+      <a href="{% url 'silence_thresholds' %}" class="btn-ghost">
+        <i class="bi bi-stopwatch"></i> Thresholds de silêncio
+      </a>
+      <button type="button" onclick="openCleanupModal()" class="btn-ghost">
+        <i class="bi bi-eraser"></i> Limpar órfãos
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if user.is_staff or user.is_superuser %}
+  <!-- Modal: limpeza de heartbeats órfãos -->
+  <div id="cleanupModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm items-center justify-center p-4"
+       onclick="if(event.target===this)closeCleanupModal()">
+    <div class="glass-card max-w-md w-full overflow-hidden flex flex-col">
+      <div class="flex items-center justify-between p-4 border-b border-slate-700">
+        <h3 class="text-lg font-semibold text-slate-100">
+          <i class="bi bi-eraser text-amber-400"></i> Limpar heartbeats órfãos
+        </h3>
+        <button onclick="closeCleanupModal()" class="text-slate-400 hover:text-red-400 text-2xl leading-none">&times;</button>
+      </div>
+      <div class="p-5 space-y-4">
+        <p class="text-sm text-slate-300 leading-relaxed">
+          Marca logs com status <code class="px-1 py-0.5 rounded bg-slate-800 text-emerald-300 text-xs">started</code>
+          mais antigos que o threshold como <code class="px-1 py-0.5 rounded bg-slate-800 text-red-300 text-xs">failed</code>
+          (<span class="text-amber-300">exception_type=orphan_heartbeat</span>).
+        </p>
+        <div>
+          <label class="fx-label">Threshold (horas)</label>
+          <input id="cleanupThreshold" type="number" min="1" max="8760" value="24" class="fx-input">
+          <p class="text-xs text-slate-500 mt-1">Só logs com start_time &lt; agora − N horas são afetados.</p>
+        </div>
+        <details class="text-xs">
+          <summary class="cursor-pointer text-slate-400 hover:text-slate-200 select-none">Opções avançadas de lote</summary>
+          <div class="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label class="fx-label">Batch size</label>
+              <input id="cleanupBatchSize" type="number" min="50" max="5000" value="500" class="fx-input">
+              <p class="text-[10px] text-slate-500 mt-1">Linhas por UPDATE (50–5000).</p>
+            </div>
+            <div>
+              <label class="fx-label">Pausa entre lotes (ms)</label>
+              <input id="cleanupSleepMs" type="number" min="0" max="5000" value="100" class="fx-input">
+              <p class="text-[10px] text-slate-500 mt-1">Dá espaço ao SDK escrever (0–5000).</p>
+            </div>
+          </div>
+        </details>
+        <div id="cleanupResult" class="hidden text-sm p-3 rounded-lg border"></div>
+      </div>
+      <div class="flex items-center justify-end gap-2 p-4 border-t border-slate-700">
+        <button type="button" onclick="closeCleanupModal()" class="btn-ghost">Cancelar</button>
+        <button type="button" onclick="runCleanup(true)" class="btn-ghost"><i class="bi bi-eye"></i> Simular</button>
+        <button type="button" onclick="runCleanup(false)" class="btn-primary" id="cleanupConfirmBtn">
+          <i class="bi bi-check-lg"></i> Executar
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Filtros -->
+  <form method="get" class="glass-card p-4">
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div>
+        <label class="fx-label">Status</label>
+        <select name="status" class="fx-select">
+          <option value="active"   {% if status == 'active' %}selected{% endif %}>Ativos</option>
+          <option value="resolved" {% if status == 'resolved' %}selected{% endif %}>Resolvidos</option>
+          <option value="all"      {% if status == 'all' %}selected{% endif %}>Todos</option>
+        </select>
+      </div>
+      <div>
+        <label class="fx-label">Severidade</label>
+        <select name="severity" class="fx-select">
+          <option value="">Todas</option>
+          {% for val, label in severities %}
+          <option value="{{ val }}" {% if severity == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="fx-label">Tipo</label>
+        <select name="type" class="fx-select">
+          <option value="">Todos</option>
+          {% for val, label in types %}
+          <option value="{{ val }}" {% if type == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex items-end gap-2">
+        <button type="submit" class="btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+        <a href="{% url 'alert_list' %}" class="btn-ghost">Limpar</a>
+      </div>
+    </div>
+  </form>
+
+  <!-- Lista de alertas -->
+  {% if alerts %}
+  <div class="space-y-3">
+    {% for alert in alerts %}
+    <div id="alert-{{ alert.id }}"
+         class="glass-card p-4 relative overflow-hidden {% if alert.resolved_at %}opacity-60{% endif %}">
+      <!-- Accent por severidade -->
+      <div class="absolute top-0 left-0 bottom-0 w-1
+        {% if alert.severity == 'critical' %}bg-red-600
+        {% elif alert.severity == 'high' %}bg-orange-500
+        {% elif alert.severity == 'medium' %}bg-amber-500
+        {% else %}bg-emerald-500{% endif %}"></div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] gap-4 items-start pl-2">
+        <div class="flex flex-col items-start gap-1.5 sm:min-w-[140px]">
+          <span class="chip
+            {% if alert.severity == 'critical' %}chip-danger
+            {% elif alert.severity == 'high' %}chip-warning
+            {% elif alert.severity == 'medium' %}chip-warning
+            {% else %}chip-success{% endif %}">
+            {% if alert.severity == 'critical' %}<i class="bi bi-fire"></i>
+            {% elif alert.severity == 'high' %}<i class="bi bi-exclamation-triangle-fill"></i>
+            {% elif alert.severity == 'medium' %}<i class="bi bi-exclamation-circle"></i>
+            {% else %}<i class="bi bi-info-circle"></i>{% endif %}
+            {{ alert.get_severity_display }}
+          </span>
+          <span class="text-xs text-slate-400 font-medium">{{ alert.get_type_display }}</span>
+        </div>
+
+        <div>
+          <p class="text-slate-100 text-sm leading-relaxed">{{ alert.message }}</p>
+          <div class="mt-2 flex items-center gap-x-4 gap-y-1 flex-wrap text-xs text-slate-500">
+            {% if alert.bot_id %}
+            <span class="inline-flex items-center gap-1"><i class="bi bi-robot"></i><span class="text-slate-300 font-medium">{{ alert.bot.name }}</span></span>
+            {% endif %}
+            <span class="inline-flex items-center gap-1"><i class="bi bi-clock"></i>{{ alert.created_at|date:"d/m/Y H:i" }}</span>
+            {% if alert.acked_at %}
+            <span class="inline-flex items-center gap-1 text-blue-400"><i class="bi bi-eye"></i>Ack por {{ alert.acked_by.username|default:"—" }} em {{ alert.acked_at|date:"d/m H:i" }}</span>
+            {% endif %}
+            {% if alert.resolved_at %}
+            <span class="inline-flex items-center gap-1 text-emerald-400"><i class="bi bi-check-circle-fill"></i>Resolvido por {{ alert.resolved_by.username|default:"—" }} em {{ alert.resolved_at|date:"d/m H:i" }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:items-end gap-2">
+          {% if not alert.acked_at %}
+          <button type="button" onclick="ackAlert({{ alert.id }})" class="btn-ghost text-xs py-1.5 w-full sm:w-auto">
+            <i class="bi bi-eye"></i> Reconhecer
+          </button>
+          {% endif %}
+          {% if not alert.resolved_at %}
+          <button type="button" onclick="resolveAlert({{ alert.id }})" class="btn-primary text-xs py-1.5 w-full sm:w-auto">
+            <i class="bi bi-check-lg"></i> Resolver
+          </button>
+          {% endif %}
+          {% if alert.bot_id %}
+          <a href="{% url 'bot_detail' alert.bot_id %}" class="btn-ghost text-xs py-1.5 w-full sm:w-auto">
+            <i class="bi bi-arrow-right"></i> Ver bot
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Paginação -->
+  <div class="fx-pagination">
+    {% if page_obj.has_previous %}
+      <a href="?{% if status %}status={{ status }}&{% endif %}{% if severity %}severity={{ severity }}&{% endif %}{% if type %}type={{ type }}&{% endif %}page={{ page_obj.previous_page_number }}">&laquo;</a>
+    {% endif %}
+    <span class="current">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?{% if status %}status={{ status }}&{% endif %}{% if severity %}severity={{ severity }}&{% endif %}{% if type %}type={{ type }}&{% endif %}page={{ page_obj.next_page_number }}">&raquo;</a>
+    {% endif %}
+  </div>
+
+  {% else %}
+  <div class="glass-card p-12 text-center">
+    <div class="w-16 h-16 mx-auto rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+      <i class="bi bi-check-circle text-3xl text-emerald-400"></i>
+    </div>
+    <p class="mt-4 text-slate-300 font-medium">Tudo tranquilo por aqui.</p>
+    <p class="text-slate-500 text-sm mt-1">
+      Nenhum alerta {% if status == 'active' %}ativo{% elif status == 'resolved' %}resolvido{% endif %}.
+    </p>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  function getCsrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+  async function postAlert(url) {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest'},
+    });
+    if (!resp.ok) { alert('Erro: ' + resp.status); return null; }
+    return resp.json();
+  }
+  async function ackAlert(id)     { const d = await postAlert(`/alerts/${id}/ack/`);     if (d) location.reload(); }
+  async function resolveAlert(id) {
+    if (!confirm('Marcar como resolvido?')) return;
+    const d = await postAlert(`/alerts/${id}/resolve/`); if (d) location.reload();
+  }
+
+  // ---- Cleanup orphans modal ----
+  function openCleanupModal() {
+    const m = document.getElementById('cleanupModal');
+    if (!m) return;
+    document.getElementById('cleanupResult').classList.add('hidden');
+    m.classList.remove('hidden'); m.classList.add('flex');
+  }
+  function closeCleanupModal() {
+    const m = document.getElementById('cleanupModal');
+    if (!m) return;
+    m.classList.add('hidden'); m.classList.remove('flex');
+  }
+  async function runCleanup(dryRun) {
+    const input = document.getElementById('cleanupThreshold');
+    const hours = parseInt(input.value, 10);
+    if (!hours || hours < 1) { alert('Threshold inválido.'); return; }
+    if (!dryRun && !confirm(`Marcar todos os logs started com mais de ${hours}h como orphan_heartbeat?`)) return;
+
+    const btn = document.getElementById('cleanupConfirmBtn');
+    btn.disabled = true;
+    const result = document.getElementById('cleanupResult');
+    result.className = 'text-sm p-3 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-300';
+    result.textContent = 'Processando...';
+    result.classList.remove('hidden');
+
+    const batchInput = document.getElementById('cleanupBatchSize');
+    const sleepInput = document.getElementById('cleanupSleepMs');
+    const batchSize = batchInput ? parseInt(batchInput.value, 10) || undefined : undefined;
+    const sleepMs   = sleepInput ? parseInt(sleepInput.value, 10) : undefined;
+
+    try {
+      const resp = await fetch('/maintenance/cleanup-orphans/', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCsrf(),
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          threshold_hours: hours,
+          dry_run: !!dryRun,
+          batch_size: batchSize,
+          sleep_ms: isNaN(sleepMs) ? undefined : sleepMs,
+        }),
+      });
+      const data = await resp.json();
+      if (resp.status === 413 || data.status === 'too_large') {
+        result.className = 'text-sm p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-200 whitespace-pre-wrap';
+        result.textContent = data.message || 'Volume grande demais para HTTP. Use o comando CLI.';
+      } else if (!resp.ok || data.status !== 'success') {
+        result.className = 'text-sm p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300';
+        result.textContent = data.message || ('Erro ' + resp.status);
+      } else {
+        const cls = dryRun
+          ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+          : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
+        result.className = 'text-sm p-3 rounded-lg border ' + cls;
+        result.textContent = data.message;
+        if (!dryRun && data.count > 0) setTimeout(() => location.reload(), 1500);
+      }
+    } catch (e) {
+      result.className = 'text-sm p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300';
+      result.textContent = 'Erro de rede.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeCleanupModal(); });
+</script>
+{% endblock %}

@@ -1,18 +1,25 @@
 import os
 import json
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
 DEBUG = os.getenv('BOTAPP_DEBUG', 'False').lower() == 'true'
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-print(f"BASE_DIR: {BASE_DIR}")
-print(f"DEBUG: {DEBUG}")
+logging.getLogger('botapp.settings').debug(
+    "loaded settings BASE_DIR=%s DEBUG=%s", BASE_DIR, DEBUG,
+)
 
 SECRET_KEY = os.getenv("BOTAPP_SECRET_KEY", 'chave-super-secreta-para-dev')
 
-# if not DEBUG and SECRET_KEY == 'chave-super-secreta-para-dev':
-#     raise Exception("SECRET_KEY fraco em produção!")
+# Em produção, exigir SECRET_KEY explicitamente via env var.
+# Retrocompatível: DEBUG=True continua usando o default sem erro.
+if not DEBUG and SECRET_KEY == 'chave-super-secreta-para-dev':
+    raise RuntimeError(
+        "BOTAPP_SECRET_KEY não pode usar o valor default em produção. "
+        "Defina a variável de ambiente BOTAPP_SECRET_KEY."
+    )
 
 ALLOWED_HOSTS = os.getenv("BOTAPP_ALLOWED_HOSTS", '*').split(',')
 PORT_ADMIN = os.getenv("BOTAPP_PORT_ADMIN", 8000)
@@ -171,16 +178,39 @@ if not DEBUG:
             }
         }
 
+# LOGGING — apenas afeta modo standalone (quando este settings.py é DJANGO_SETTINGS_MODULE).
+# Em modo plugin, o projeto hospedeiro é dono do logging; o SDK só emite via
+# getLogger('botapp.*') e um NullHandler adicionado em botapp/__init__.py garante
+# que não haja erro caso o host não configure handler algum.
 LOGGING = {
-  'version': 1,
-  'disable_existing_loggers': False,
-  'handlers': {
-    'console': {
-      'class': 'logging.StreamHandler',
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '[%(asctime)s] %(levelname)s %(name)s: %(message)s',
+        },
     },
-  },
-  'root': {
-    'handlers': ['console'],
-    'level': os.getenv("BOTAPP_LOGGING_LEVEL",'ERROR'),
-  },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
+    },
+    'loggers': {
+        'botapp': {
+            'handlers': ['console'],
+            'level': os.getenv("BOTAPP_LOGGING_LEVEL", 'INFO'),
+            'propagate': False,
+        },
+        'django': {
+            'handlers': ['console'],
+            'level': os.getenv("BOTAPP_DJANGO_LOG_LEVEL", 'WARNING'),
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+    },
 }

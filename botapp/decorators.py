@@ -2,6 +2,7 @@ import os
 import sys
 import socket
 import getpass
+import logging
 import platform
 import requests
 import traceback
@@ -12,8 +13,11 @@ from requests.auth import HTTPBasicAuth
 
 from .models import Task, TaskLog
 
+logger = logging.getLogger(__name__)
+
 BOTAPP_API_USUARIO = os.environ.get('BOTAPP_API_USUARIO')
 BOTAPP_API_SENHA = os.environ.get('BOTAPP_API_SENHA')
+BOTAPP_API_TIMEOUT = float(os.environ.get('BOTAPP_API_TIMEOUT', '10'))
 
 
 def task(app, func=None):
@@ -78,18 +82,33 @@ def task(app, func=None):
             manual_trigger=manual_trigger
         )
 
+        logger.info(
+            "task.start bot=%s task=%s log_id=%s host=%s pid=%s env=%s",
+            app.bot_instance.name, func.__name__, log.id, host_name, pid, env,
+        )
+
         try:
             result = func(*args, **kwargs)
             log.status = TaskLog.Status.COMPLETED
             log.result_data = {'return': str(result)}
+            logger.info(
+                "task.success bot=%s task=%s log_id=%s",
+                app.bot_instance.name, func.__name__, log.id,
+            )
         except Exception as e:
             log.status = TaskLog.Status.FAILED
             log.error_message = traceback.format_exc()
-            log.exception_type = type(e).__name__  # 👈 Aqui
+            log.exception_type = type(e).__name__
+            logger.exception(
+                "task.failed bot=%s task=%s log_id=%s exc=%s",
+                app.bot_instance.name, func.__name__, log.id, type(e).__name__,
+            )
             raise
         finally:
             log.end_time = timezone.now()
             log.save()
+            # Denormalização de Bot.last_* é feita pelo signal post_save em
+            # botapp/signals.py (captura tanto @task quanto task_restful).
 
         return result
 
@@ -145,9 +164,23 @@ def task_restful(app, func=None):
             "manual_trigger": manual_trigger
         }
 
-        log_response = requests.post(f"{app.api_url}/tasklog/", json=log_payload, auth=HTTPBasicAuth(BOTAPP_API_USUARIO, BOTAPP_API_SENHA))
-        log = log_response.json()
-        log_id = log.get('id')
+        try:
+            log_response = requests.post(
+                f"{app.api_url}/tasklog/",
+                json=log_payload,
+                auth=HTTPBasicAuth(BOTAPP_API_USUARIO, BOTAPP_API_SENHA),
+                timeout=BOTAPP_API_TIMEOUT,
+            )
+            log = log_response.json()
+            log_id = log.get('id')
+        except Exception:
+            logger.exception("task_restful: falha ao criar TaskLog remoto — execução prossegue sem rastreamento")
+            log_id = None
+
+        logger.info(
+            "task.start bot=%s task=%s log_id=%s host=%s pid=%s env=%s mode=restful",
+            app.bot_instance.get('name'), func.__name__, log_id, host_name, pid, env,
+        )
 
         try:
             result = func(*args, **kwargs)
@@ -155,26 +188,40 @@ def task_restful(app, func=None):
             result_data = {'return': str(result)}
             error_message = None
             exception_type = None
+            logger.info(
+                "task.success bot=%s task=%s log_id=%s mode=restful",
+                app.bot_instance.get('name'), func.__name__, log_id,
+            )
         except Exception as e:
             status = 'failed'
             result_data = None
             error_message = traceback.format_exc()
             exception_type = type(e).__name__
+            logger.exception(
+                "task.failed bot=%s task=%s log_id=%s exc=%s mode=restful",
+                app.bot_instance.get('name'), func.__name__, log_id, exception_type,
+            )
             raise
         finally:
-            end_time = datetime.now()
-            patch_payload = {
-                "status": status,
-                "end_time": end_time.isoformat(),
-                "duration": str(end_time - start_time),
-                "result_data": result_data,
-                "error_message": error_message,
-                "exception_type": exception_type
-            }
-            try:
-                requests.patch(f"{app.api_url}/tasklog/{log_id}/", json=patch_payload, auth=HTTPBasicAuth(BOTAPP_API_USUARIO, BOTAPP_API_SENHA))
-            except Exception as e:
-                print(f"⚠️ Falha ao atualizar TaskLog: {e}")
+            if log_id is not None:
+                end_time = datetime.now()
+                patch_payload = {
+                    "status": status,
+                    "end_time": end_time.isoformat(),
+                    "duration": str(end_time - start_time),
+                    "result_data": result_data,
+                    "error_message": error_message,
+                    "exception_type": exception_type
+                }
+                try:
+                    requests.patch(
+                        f"{app.api_url}/tasklog/{log_id}/",
+                        json=patch_payload,
+                        auth=HTTPBasicAuth(BOTAPP_API_USUARIO, BOTAPP_API_SENHA),
+                        timeout=BOTAPP_API_TIMEOUT,
+                    )
+                except Exception:
+                    logger.exception("task_restful: falha ao atualizar TaskLog log_id=%s", log_id)
 
         return result
 

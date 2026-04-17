@@ -1,11 +1,14 @@
 #core.py
 
 import re
+import logging
 from .models import Bot, Task
 from .decorators import task
 from django.db import connection
 from django.conf import settings
 from django.core.management import call_command
+
+logger = logging.getLogger(__name__)
 
 
 class BotApp:
@@ -13,6 +16,7 @@ class BotApp:
         self.db_name = db_name
         connection.settings_dict["NAME"] = db_name
         self.bot_instance = None
+        logger.debug("BotApp inicializado db_name=%s (modo standalone)", db_name)
 
     def set_bot(self, bot_name, bot_description, bot_version, bot_department):
         # Substitui qualquer caractere que não seja alfanumérico por espaço
@@ -47,6 +51,10 @@ class BotApp:
                 bot.save()
 
         self.bot_instance = bot
+        logger.info(
+            "bot.registered name=%s version=%s department=%s created=%s",
+            bot.name, bot.version, bot.department, created,
+        )
 
     def _get_or_create_task(self, func):
         if self.bot_instance is None:
@@ -72,5 +80,5 @@ class BotApp:
     def open_admin(self):
         try:
             call_command('runserver', f'0.0.0.0:{settings.PORT_ADMIN}')
-        except Exception as e:
-            print(f"⚠️ Erro ao rodar o servidor: {e}")
+        except Exception:
+            logger.exception("Erro ao rodar o servidor admin")

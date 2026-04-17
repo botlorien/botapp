@@ -1,15 +1,20 @@
 # botapp/__init__.py
 
 import os
+import logging
 
-# teste
-#os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'botapp.settings')
+# Boa prática de pacote: adiciona NullHandler no namespace 'botapp'
+# para que o SDK não emita logs se o projeto hospedeiro não tiver
+# configurado um handler. O host é soberano sobre o logging.
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+
+_logger = logging.getLogger(__name__)
 
 # Detecta se está standalone
 STANDALONE_MODE = 'DJANGO_SETTINGS_MODULE' not in os.environ
 
 if STANDALONE_MODE:
-    print("Modo standalone: inicializando settings para BOTAPP.")
+    _logger.info("botapp em modo standalone — inicializando settings do pacote")
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'botapp.settings')
     import django
     django.setup()
@@ -25,7 +30,7 @@ def is_inside_django_project():
 
 # Executa servidor REST isolado apenas em modo plugin
 if is_inside_django_project():
-    print("Modo plugin detectado: rodando servidor REST isolado.")
+    _logger.info("botapp em modo plugin — usando cliente REST (BotAppRestful)")
     # from .rest_server import start_rest_server
     # start_rest_server()
     from .core_restful import BotAppRestful as BotApp

@@ -1,221 +1,288 @@
 <!DOCTYPE html>
 {% load static %}
-<html lang="pt-br">
+<html lang="pt-br" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}RPA | Dashboard{% endblock %}</title>
-    
-    <!-- Bloco de estilos -->
+    <title>{% block title %}RPA | Monitoramento{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233b82f6'/%3E%3Cpath d='M7 10h10v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6zm2-4h6a2 2 0 0 1 2 2v1H7V8a2 2 0 0 1 2-2zm1 7h1v2h-1zm3 0h1v2h-1z' fill='%23fff'/%3E%3C/svg%3E">
+
     {% block extrastyle %}
-    <link rel="stylesheet" href="{% static 'admin/css/custom.css' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+    <script>
+      // HTMX: envia CSRF automaticamente em qualquer método não-seguro.
+      document.addEventListener('DOMContentLoaded', function() {
+        if (!window.htmx) return;
+        document.body.addEventListener('htmx:configRequest', function(evt) {
+          const m = document.cookie.match(/csrftoken=([^;]+)/);
+          if (m) evt.detail.headers['X-CSRFToken'] = m[1];
+        });
+      });
+    </script>
+    <style>
+      html, body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+      body { background: #020617; color: #e2e8f0; }
+
+      /* Grid pattern global, sutil */
+      body::before {
+        content: '';
+        position: fixed; inset: 0;
+        background-image:
+          linear-gradient(rgba(59,130,246,.05) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(59,130,246,.05) 1px, transparent 1px);
+        background-size: 50px 50px;
+        pointer-events: none;
+        z-index: 0;
+      }
+      /* Blobs decorativos */
+      body::after {
+        content: '';
+        position: fixed;
+        top: -200px; right: -200px;
+        width: 600px; height: 600px;
+        background: radial-gradient(circle, rgba(59,130,246,.08) 0%, transparent 70%);
+        pointer-events: none; z-index: 0;
+      }
+
+      /* Estrutura principal acima dos blobs */
+      .app-shell { position: relative; z-index: 1; }
+
+      /* Cards glass */
+      .glass-card {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(51, 65, 85, 0.6);
+        border-radius: 0.75rem;
+      }
+      .glass-card:hover { border-color: rgba(59, 130, 246, 0.3); }
+
+      /* Inputs padronizados */
+      .fx-input, .fx-select {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgb(51, 65, 85);
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        color: #e2e8f0;
+        width: 100%;
+        transition: all .15s;
+      }
+      .fx-input:focus, .fx-select:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+      }
+      .fx-label { font-size: .72rem; color: #94a3b8; font-weight: 500; margin-bottom: .2rem; display: block; letter-spacing: .02em; }
+      .fx-checkbox {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 1.15rem; height: 1.15rem;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1.5px solid rgb(71, 85, 105);
+        border-radius: 0.3rem;
+        cursor: pointer;
+        position: relative;
+        transition: all .12s;
+        flex-shrink: 0;
+      }
+      .fx-checkbox:hover { border-color: #3b82f6; }
+      .fx-checkbox:checked {
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        border-color: #3b82f6;
+      }
+      .fx-checkbox:checked::after {
+        content: '';
+        position: absolute;
+        left: 0.33rem; top: 0.08rem;
+        width: 0.32rem; height: 0.62rem;
+        border: solid #fff;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+      .fx-checkbox:focus { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,.25); }
+
+      /* Botões */
+      .btn-primary {
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        color: #fff; font-weight: 600; padding: .5rem 1rem;
+        border-radius: .5rem; border: 0; cursor: pointer;
+        transition: all .15s; display: inline-flex; align-items: center; gap: .4rem;
+      }
+      .btn-primary:hover { filter: brightness(1.1); box-shadow: 0 0 30px -5px rgba(59,130,246,.5); }
+      .btn-ghost {
+        background: transparent; color: #cbd5e1; padding: .5rem 1rem;
+        border-radius: .5rem; border: 1px solid rgb(51, 65, 85); cursor: pointer;
+        transition: all .15s; display: inline-flex; align-items: center; gap: .4rem;
+      }
+      .btn-ghost:hover { border-color: #3b82f6; color: #60a5fa; }
+
+      /* Status chips */
+      .chip { display: inline-flex; align-items: center; gap: .3rem; padding: .15rem .55rem; border-radius: 999px; font-size: .7rem; font-weight: 600; }
+      .chip-success  { background: rgba(16,185,129,.15); color: #34d399; border: 1px solid rgba(16,185,129,.3); }
+      .chip-danger   { background: rgba(239,68,68,.15); color: #f87171;  border: 1px solid rgba(239,68,68,.3); }
+      .chip-warning  { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid rgba(245,158,11,.3); }
+      .chip-info     { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
+      .chip-muted    { background: rgba(100,116,139,.15); color: #94a3b8; border: 1px solid rgba(100,116,139,.3); }
+
+      /* Tabelas */
+      .fx-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+      .fx-table th { background: rgba(15,23,42,.8); color: #94a3b8; font-weight: 600; text-align: left; padding: .6rem .75rem; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid rgb(51, 65, 85); position: sticky; top: 0; z-index: 2; }
+      .fx-table td { padding: .65rem .75rem; border-bottom: 1px solid rgba(51, 65, 85, 0.5); color: #e2e8f0; }
+      .fx-table tbody tr:hover { background: rgba(59,130,246,.05); }
+
+      /* Paginação */
+      .fx-pagination { display: flex; justify-content: center; gap: .4rem; margin-top: 1rem; }
+      .fx-pagination a, .fx-pagination span {
+        padding: .4rem .85rem; border-radius: .4rem;
+        border: 1px solid rgb(51, 65, 85); color: #cbd5e1; text-decoration: none;
+        font-size: .85rem; transition: all .15s;
+      }
+      .fx-pagination a:hover { border-color: #3b82f6; color: #60a5fa; }
+      .fx-pagination .current { background: linear-gradient(135deg,#2563eb,#4f46e5); color:#fff; border-color:transparent; }
+
+      /* Header */
+      .fx-header {
+        position: sticky; top: 0; z-index: 40;
+        background: rgba(2, 6, 23, 0.75);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+      }
+      .fx-nav-link {
+        display: inline-flex; align-items: center; gap: .4rem;
+        padding: .5rem .85rem; border-radius: .5rem; color: #cbd5e1;
+        font-size: .88rem; text-decoration: none; transition: all .15s;
+        position: relative;
+      }
+      .fx-nav-link:hover { background: rgba(59,130,246,.1); color: #60a5fa; }
+      .fx-nav-link.active { background: rgba(59,130,246,.15); color: #60a5fa; }
+
+      /* Skeleton loader for htmx */
+      .htmx-indicator { opacity: 0; transition: opacity .2s; }
+      .htmx-request .htmx-indicator { opacity: 1; }
+
+      /* Scrollbar dark */
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: #0f172a; }
+      ::-webkit-scrollbar-thumb { background: #334155; border-radius: 5px; }
+      ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
     {% endblock %}
-    
-    <!-- Bloco para head adicional -->
+
     {% block extrahead %}{% endblock %}
 </head>
-<body class="{% if request.COOKIES.theme == 'dark' %}dark-mode{% else %}light-mode{% endif %}">
-  <header class="main-header">
-    {% block branding %}
-    <div class="header-container">
-        <!-- Logo e Nome do Sistema -->
-        <div class="header-brand">
-            <a href="{% url 'bot_list' %}" class="brand-link">
-                <i class="bi bi-cpu-fill bot-icon"></i>
-                <h1 id="site-name">RPA | Monitoramento</h1>
-            </a>
-        </div>
-        
-        <!-- Botão do Menu Mobile -->
-        <button class="mobile-menu-button" aria-label="Abrir Menu">
-            <i class="bi bi-list"></i>
-        </button>
+<body>
+  <div class="app-shell">
 
-        <!-- Navegação -->
-        <nav class="header-nav">
-          {% if user.is_authenticated %}
-            <a href="{% url 'dashboard' %}" class="nav-link">
-                <i class="bi bi-speedometer2"></i>
-                <span>Dashboard</span>
-            </a>
-            <!-- Controle de Atualização Automática -->
-            <div class="auto-refresh-control">
-              <span>Refresh</span>
-              <select id="refresh-interval" class="refresh-select">
-                  <option value="5000">5 segundos</option>
-                  <option value="10000">10 segundos</option>
-                  <option value="30000">30 segundos</option>
-                  <option value="60000">1 minuto</option>
-                  <option value="300000">5 minutos</option>
-                  <option value="600000">10 minutos</option>
-                  <option value="1800000">30 minutos</option>
-                  <option value="3600000">1 hora</option>
-                  <option value="0" selected>Nunca</option>
-              </select>
-              <button id="apply-refresh" class="refresh-button">
-                  <i class="bi bi-arrow-clockwise"></i>
-                  <span>Aplicar</span>
-              </button>
+    <header class="fx-header">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+        <a href="{% url 'bot_list' %}" class="flex items-center gap-3 shrink-0 group">
+          <div class="w-9 h-9 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center group-hover:scale-105 transition">
+            <i class="bi bi-cpu-fill text-blue-400"></i>
           </div>
-            
-            <!-- Botão de Logout -->
-            <form action="{% url 'logout' %}" method="post" class="logout-form">
-                {% csrf_token %}
-                <button type="submit" class="logout-button">
-                    <i class="bi bi-box-arrow-right"></i>
-                    <span class="logout-text">Sair</span>
-                </button>
-            </form>
-            {% endif %}
-            <!-- Botão Alternar Tema -->
-            <button id="toggle-theme" class="toggle-theme">
-              <i class="bi {% if request.COOKIES.theme == 'dark' %}bi-sun-fill{% else %}bi-moon-fill{% endif %} theme-icon"></i>
-              <span class="theme-text">Alternar Tema</span>
-          </button>
+          <span class="font-semibold text-slate-100 hidden sm:block">RPA Monitor</span>
+        </a>
+
+        {% if user.is_authenticated %}
+        <nav class="flex items-center gap-1 sm:gap-2 flex-1 justify-end flex-wrap">
+          <a href="{% url 'bot_list' %}"  class="fx-nav-link {% if request.resolver_match.url_name == 'bot_list' %}active{% endif %}">
+            <i class="bi bi-robot"></i><span class="hidden md:inline">Bots</span>
+          </a>
+          <a href="{% url 'dashboard' %}" class="fx-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i><span class="hidden md:inline">Dashboard</span>
+          </a>
+          <a href="{% url 'explore' %}"  class="fx-nav-link {% if request.resolver_match.url_name == 'explore' %}active{% endif %}">
+            <i class="bi bi-table"></i><span class="hidden md:inline">Explorador</span>
+          </a>
+          <a href="{% url 'alert_list' %}" class="fx-nav-link relative {% if request.resolver_match.url_name == 'alert_list' %}active{% endif %}">
+            <i class="bi bi-bell-fill"></i><span class="hidden md:inline">Alertas</span>
+            <span id="alerts-badge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold items-center justify-center shadow-lg shadow-red-500/50">0</span>
+          </a>
+
+          <div class="hidden lg:flex items-center gap-2 ml-4 pl-4 border-l border-slate-700">
+            <label class="text-xs text-slate-400 shrink-0">Refresh</label>
+            <select id="refresh-interval" class="fx-select text-xs py-1 px-2 w-28">
+              <option value="0" selected>Nunca</option>
+              <option value="5000">5s</option>
+              <option value="10000">10s</option>
+              <option value="30000">30s</option>
+              <option value="60000">1m</option>
+              <option value="300000">5m</option>
+              <option value="600000">10m</option>
+            </select>
+            <button id="apply-refresh" class="btn-ghost text-xs py-1 px-2" type="button">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+
+          <form action="{% url 'logout' %}" method="post" class="ml-2">
+            {% csrf_token %}
+            <button type="submit" class="fx-nav-link hover:text-red-400" title="Sair">
+              <i class="bi bi-box-arrow-right"></i>
+            </button>
+          </form>
         </nav>
-    </div>
-    {% endblock %}
-</header>
+        {% endif %}
+      </div>
+    </header>
 
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
 
-  <main class="container">
-    {% block content %}{% endblock %}
-  </main>
-  
+  {% if user.is_authenticated %}
   <script>
-      // Configuração do Toggle Theme
-      document.addEventListener("DOMContentLoaded", function() {
-          const toggleButton = document.getElementById("toggle-theme");
-          const themeIcon = document.querySelector(".theme-icon");
-          
-          // Verificar tema salvo ou preferência do sistema
-          const savedTheme = localStorage.getItem("theme");
-          const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-          
-          // Aplicar tema inicial
-          if (savedTheme === "dark" || (!savedTheme && systemPrefersDark)) {
-              document.body.classList.add("dark-mode");
-              document.body.classList.remove("light-mode");
-              themeIcon.classList.remove("bi-moon-fill");
-              themeIcon.classList.add("bi-sun-fill");
+    // Badge de alertas — polling no endpoint cacheado.
+    (function() {
+      const badge = document.getElementById('alerts-badge');
+      if (!badge) return;
+      async function refresh() {
+        try {
+          const r = await fetch('{% url "alerts_unread_count" %}', {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+          if (!r.ok) return;
+          const d = await r.json();
+          if (d.count > 0) {
+            badge.classList.remove('hidden');
+            badge.classList.add('inline-flex');
+            badge.textContent = d.count > 99 ? '99+' : d.count;
           } else {
-              document.body.classList.add("light-mode");
-              document.body.classList.remove("dark-mode");
-              themeIcon.classList.remove("bi-sun-fill");
-              themeIcon.classList.add("bi-moon-fill");
+            badge.classList.add('hidden');
+            badge.classList.remove('inline-flex');
           }
-          
-          // Configurar o botão de alternar tema
-          toggleButton.addEventListener("click", function() {
-              const isDark = document.body.classList.toggle("dark-mode");
-              document.body.classList.toggle("light-mode");
-              localStorage.setItem("theme", isDark ? "dark" : "light");
-              
-              // Atualizar ícone
-              if (isDark) {
-                  themeIcon.classList.remove("bi-moon-fill");
-                  themeIcon.classList.add("bi-sun-fill");
-              } else {
-                  themeIcon.classList.remove("bi-sun-fill");
-                  themeIcon.classList.add("bi-moon-fill");
-              }
-          });
-      });
+        } catch (e) {}
+      }
+      refresh();
+      setInterval(refresh, 30000);
+    })();
 
-      // Adicione ao seu bloco extrascripts
-      document.addEventListener('DOMContentLoaded', function() {
-  const mobileMenuButton = document.querySelector('.mobile-menu-button');
-  const headerNav = document.querySelector('.header-nav');
-  
-  if (mobileMenuButton && headerNav) {
-    mobileMenuButton.addEventListener('click', function() {
-      headerNav.classList.toggle('mobile-visible');
-      this.classList.toggle('active');
-    });
-  }
-  
-  // Ajusta o header quando a janela é redimensionada
-  function handleResize() {
-    if (window.innerWidth > 768) {
-      headerNav.classList.remove('mobile-visible');
-      mobileMenuButton.classList.remove('active');
-    }
-  }
-  
-  window.addEventListener('resize', handleResize);
-});
+    // Auto-refresh (preserva comportamento antigo).
+    (function() {
+      const btn = document.getElementById('apply-refresh');
+      const sel = document.getElementById('refresh-interval');
+      if (!btn || !sel) return;
+      let timer = null;
+      const saved = localStorage.getItem('refreshInterval');
+      if (saved) sel.value = saved;
+      function apply() {
+        if (timer) { clearTimeout(timer); timer = null; }
+        const v = parseInt(sel.value);
+        if (v > 0) timer = setTimeout(() => location.reload(), v);
+        localStorage.setItem('refreshInterval', sel.value);
+      }
+      btn.addEventListener('click', apply);
+      sel.addEventListener('change', apply);
+      if (saved && saved !== '0') apply();
+    })();
   </script>
-    
-  <!-- Bloco para scripts adicionais -->
-  {% block extrascripts %}
-  <script>
-  document.addEventListener('DOMContentLoaded', function() {
-      // Variável para armazenar o timer
-      let refreshTimer = null;
-      const refreshButton = document.getElementById('apply-refresh');
-      const refreshIntervalSelect = document.getElementById('refresh-interval');
-      const refreshIcon = refreshButton.querySelector('i');
-      
-      // Função para atualizar a página
-      function refreshPage() {
-          // Mostra o ícone de carregamento
-          refreshIcon.classList.add('refreshing');
-          
-          // Força um hard refresh para garantir dados atualizados
-          window.location.reload(true);
-      }
-      
-      // Função para iniciar/parar a atualização automática
-      function setupAutoRefresh() {
-          const interval = parseInt(refreshIntervalSelect.value);
-          
-          // Limpa o timer existente
-          if (refreshTimer) {
-              clearTimeout(refreshTimer);
-              refreshTimer = null;
-          }
-          
-          // Se o intervalo for maior que 0, configura novo timer
-          if (interval > 0) {
-              refreshTimer = setTimeout(refreshPage, interval);
-              refreshButton.querySelector('span').textContent = 'Ativo';
-          } else {
-              refreshButton.querySelector('span').textContent = 'Aplicar';
-          }
-      }
-      
-      // Configura o botão de aplicar
-      refreshButton.addEventListener('click', function() {
-          setupAutoRefresh();
-          
-          // Mostra feedback visual
-          this.classList.add('active');
-          setTimeout(() => this.classList.remove('active'), 300);
-      });
-      
-      // Inicia com o valor salvo no localStorage, se existir
-      const savedInterval = localStorage.getItem('refreshInterval');
-      if (savedInterval) {
-          refreshIntervalSelect.value = savedInterval;
-          if (savedInterval !== '0') {
-              setupAutoRefresh();
-          }
-      }
-      
-      // Salva a preferência quando muda
-      refreshIntervalSelect.addEventListener('change', function() {
-          localStorage.setItem('refreshInterval', this.value);
-      });
-      
-      // Atualiza o ícone quando a página termina de carregar
-      window.addEventListener('load', function() {
-          refreshIcon.classList.remove('refreshing');
-      });
-  });
-  </script>
-  {% endblock %}
+  {% endif %}
+
+  {% block extrascripts %}{% endblock %}
 </body>
 </html>
