@@ -44,6 +44,48 @@ services:
     #   - "traefik.http.routers.botapp.tls=true"
     #   - "traefik.http.services.botapp.loadbalancer.server.port=8000"
 
+  botapp_scheduler:
+    restart: always
+    user: root
+    build: .
+    container_name: botapp-scheduler
+    command: python manage.py run_alert_scheduler
+    environment:
+        - PG_BOTAPP_DBNAME
+        - PG_BOTAPP_USER
+        - PG_BOTAPP_PASSWORD
+        - PG_BOTAPP_HOST
+        - PG_BOTAPP_PORT
+        - BOTAPP_EMAIL_HOST
+        - BOTAPP_EMAIL_PORT
+        - BOTAPP_EMAIL_USER
+        - BOTAPP_EMAIL_PASSWORD
+        - BOTAPP_DEBUG
+        - BOTAPP_ENV
+        - BOTAPP_SECRET_KEY
+        - BOTAPP_LOGGING_LEVEL
+        - BOTAPP_REDIS_URL
+        - BOTAPP_ALERT_SCHEDULER_INTERVAL_SECONDS
+        - BOTAPP_SILENT_BOT_THRESHOLD_HOURS
+        - BOTAPP_ERROR_SPIKE_WINDOW_MINUTES
+        - BOTAPP_ERROR_SPIKE_THRESHOLD
+        - BOTAPP_HEARTBEAT_LOST_THRESHOLD_HOURS
+        - BOTAPP_DURATION_REGRESSION_MULTIPLIER
+        - BOTAPP_DURATION_REGRESSION_WINDOW
+        - BOTAPP_SLACK_WEBHOOK_URL
+        - BOTAPP_DISCORD_WEBHOOK_URL
+        - BOTAPP_ALERT_EMAIL_RECIPIENTS
+        - BOTAPP_DASHBOARD_URL
+
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+    networks:
+      - botapp-net
+
   botapp_redis:
     image: redis:alpine
     restart: always

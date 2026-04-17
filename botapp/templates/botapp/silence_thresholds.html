@@ -1,0 +1,318 @@
+{% extends "botapp/base.html" %}
+{% load static %}
+
+{% block title %}Thresholds de silêncio | RPA Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Hero -->
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-stopwatch text-amber-400"></i> Thresholds de silêncio
+      </h1>
+      <p class="text-slate-400 mt-1">
+        {{ total_bots }} bot(s) no filtro atual ·
+        default global:
+        <span class="chip chip-muted ml-1"><i class="bi bi-gear"></i>{{ default_hours }}h</span>
+      </p>
+      <p class="text-xs text-slate-500 mt-1">
+        Bots sem configuração herdam o default. Use <strong>minutos</strong> para bots de alta frequência (ex.: 10min).
+      </p>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <a href="{% url 'alert_list' %}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar a Alertas</a>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" class="glass-card p-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      <div>
+        <label class="fx-label">Nome</label>
+        <input type="text" name="name" value="{{ request.GET.name }}" placeholder="Filtrar por nome" class="fx-input">
+      </div>
+      <div>
+        <label class="fx-label">Departamento</label>
+        <input type="text" name="department" list="departments-datalist"
+               value="{{ request.GET.department }}" placeholder="Digite ou escolha" autocomplete="off" class="fx-input">
+        <datalist id="departments-datalist">
+          {% for dept in departments %}<option value="{{ dept }}"></option>{% endfor %}
+        </datalist>
+      </div>
+      <div>
+        <label class="fx-label">Filtro rápido</label>
+        <select name="scope" class="fx-select"
+                onchange="const s=this.value; const f=this.form;
+                          f.only_configured.value = (s==='configured') ? '1' : '';
+                          f.only_missing.value = (s==='missing') ? '1' : '';">
+          <option value="">Todos</option>
+          <option value="configured" {% if only_configured %}selected{% endif %}>Só configurados</option>
+          <option value="missing" {% if only_missing %}selected{% endif %}>Só sem configuração</option>
+        </select>
+        <input type="hidden" name="only_configured" value="{% if only_configured %}1{% endif %}">
+        <input type="hidden" name="only_missing" value="{% if only_missing %}1{% endif %}">
+      </div>
+      <div class="flex items-end gap-2">
+        <button type="submit" class="btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+        <a href="{% url 'silence_thresholds' %}" class="btn-ghost">Limpar</a>
+      </div>
+    </div>
+  </form>
+
+  <!-- Toolbar de seleção -->
+  {% if bots %}
+  <div class="glass-card px-4 py-3 flex items-center justify-between flex-wrap gap-3">
+    <div class="flex items-center gap-3">
+      <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+        <input type="checkbox" id="selectAllBots" class="fx-checkbox" onclick="toggleSelectAll(this)">
+        <span class="text-sm text-slate-300">Selecionar todos na página</span>
+      </label>
+      <span class="text-xs text-slate-500" id="selectionCount">0 selecionado(s)</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <button type="button" onclick="openThresholdModal()" id="bulkThresholdBtn" disabled
+              class="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+        <i class="bi bi-stopwatch"></i> Aplicar threshold
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabela -->
+  <div class="glass-card overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="fx-table">
+        <thead>
+          <tr>
+            <th class="w-10"></th>
+            <th>Bot</th>
+            <th>Departamento</th>
+            <th>Ativo</th>
+            <th>Último status</th>
+            <th>Threshold atual</th>
+            <th class="text-right">Última execução</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bot in bots %}
+          <tr>
+            <td>
+              <label class="cursor-pointer p-1 inline-flex">
+                <input type="checkbox" class="fx-checkbox bot-select" value="{{ bot.id }}" onclick="updateSelection()">
+              </label>
+            </td>
+            <td class="font-medium text-slate-200">
+              <a href="{% url 'bot_detail' bot.id %}" class="hover:text-blue-300">{{ bot.name }}</a>
+            </td>
+            <td class="text-slate-400 text-xs">{{ bot.department|default:"—" }}</td>
+            <td>
+              {% if bot.is_active %}<span class="chip chip-success">Ativo</span>
+              {% else %}<span class="chip chip-muted">Inativo</span>{% endif %}
+            </td>
+            <td>
+              {% if bot.last_status == 'completed' %}<span class="chip chip-success">Completo</span>
+              {% elif bot.last_status == 'failed' %}<span class="chip chip-danger">Falhou</span>
+              {% elif bot.last_status == 'started' %}<span class="chip chip-info">Iniciado</span>
+              {% else %}<span class="text-slate-600">—</span>{% endif %}
+            </td>
+            <td>
+              {% if bot.silence_threshold_minutes %}<span class="chip chip-info"><i class="bi bi-stopwatch"></i>{{ bot.silence_threshold_minutes }}min</span>
+              {% elif bot.silence_threshold_hours %}<span class="chip chip-info"><i class="bi bi-stopwatch"></i>{{ bot.silence_threshold_hours }}h</span>
+              {% else %}<span class="chip chip-muted">default ({{ default_hours }}h)</span>{% endif %}
+            </td>
+            <td class="text-slate-400 text-xs text-right">{{ bot.last_execution_at|date:"d/m/Y H:i"|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Paginação -->
+  <div class="fx-pagination">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% for k,v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}">&laquo;</a>
+    {% endif %}
+    <span class="current">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% for k,v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}">&raquo;</a>
+    {% endif %}
+  </div>
+
+  {% else %}
+  <div class="glass-card p-12 text-center">
+    <i class="bi bi-search text-slate-600 text-4xl"></i>
+    <p class="mt-3 text-slate-400">Nenhum bot encontrado com os filtros aplicados.</p>
+    <a href="{% url 'silence_thresholds' %}" class="btn-ghost mt-4 inline-flex">Limpar filtros</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal: bulk silence threshold -->
+<div id="thresholdModal" class="fixed inset-0 z-50 hidden bg-black/70 backdrop-blur-sm items-center justify-center p-4"
+     onclick="if(event.target===this)closeThresholdModal()">
+  <div class="glass-card max-w-md w-full overflow-hidden flex flex-col">
+    <div class="flex items-center justify-between p-4 border-b border-slate-700">
+      <h3 class="text-lg font-semibold text-slate-100">
+        <i class="bi bi-stopwatch text-amber-400"></i> Threshold de silêncio
+      </h3>
+      <button onclick="closeThresholdModal()" class="text-slate-400 hover:text-red-400 text-2xl leading-none">&times;</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <p class="text-sm text-slate-300 leading-relaxed">
+        Aplicar a <span id="thresholdModalCount" class="font-semibold text-blue-400">0</span> bot(s) selecionado(s).
+        Alertas <code class="px-1 py-0.5 rounded bg-slate-800 text-amber-300 text-xs">silent_bot</code> serão disparados
+        após esse tempo sem nova execução.
+      </p>
+      <div class="grid grid-cols-[1fr_auto] gap-2 items-end">
+        <div>
+          <label class="fx-label">Valor</label>
+          <input id="thresholdInput" type="number" min="1" max="8760" value="24" class="fx-input">
+        </div>
+        <div>
+          <label class="fx-label">Unidade</label>
+          <select id="thresholdUnit" class="fx-select" onchange="onUnitChange()">
+            <option value="minutes">Minutos</option>
+            <option value="hours" selected>Horas</option>
+          </select>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 -mt-2">
+        Use <strong>minutos</strong> para bots de alta frequência (ex.: 10min).
+        "Limpar" volta ao default global ({{ default_hours }}h).
+      </p>
+      <div id="thresholdResult" class="hidden text-sm p-3 rounded-lg border"></div>
+    </div>
+    <div class="flex items-center justify-end gap-2 p-4 border-t border-slate-700">
+      <button type="button" onclick="closeThresholdModal()" class="btn-ghost">Cancelar</button>
+      <button type="button" onclick="submitThreshold(true)" class="btn-ghost"><i class="bi bi-x-circle"></i> Limpar (usar default)</button>
+      <button type="button" onclick="submitThreshold(false)" class="btn-primary" id="thresholdConfirmBtn">
+        <i class="bi bi-check-lg"></i> Aplicar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function getCsrfCookie() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.bot-select:checked')).map(cb => parseInt(cb.value, 10));
+  }
+
+  function updateSelection() {
+    const ids = getSelectedIds();
+    const count = document.getElementById('selectionCount');
+    const btn = document.getElementById('bulkThresholdBtn');
+    if (count) count.textContent = ids.length + ' selecionado(s)';
+    if (btn) btn.disabled = ids.length === 0;
+
+    const all = document.getElementById('selectAllBots');
+    const total = document.querySelectorAll('.bot-select').length;
+    if (all) all.checked = total > 0 && ids.length === total;
+  }
+
+  function toggleSelectAll(master) {
+    document.querySelectorAll('.bot-select').forEach(cb => { cb.checked = master.checked; });
+    updateSelection();
+  }
+
+  function openThresholdModal() {
+    const ids = getSelectedIds();
+    if (ids.length === 0) return;
+    document.getElementById('thresholdModalCount').textContent = ids.length;
+    document.getElementById('thresholdResult').classList.add('hidden');
+    const m = document.getElementById('thresholdModal');
+    m.classList.remove('hidden'); m.classList.add('flex');
+  }
+
+  function closeThresholdModal() {
+    const m = document.getElementById('thresholdModal');
+    m.classList.add('hidden'); m.classList.remove('flex');
+  }
+
+  function onUnitChange() {
+    const unit = document.getElementById('thresholdUnit').value;
+    const input = document.getElementById('thresholdInput');
+    if (unit === 'minutes') {
+      input.min = 1; input.max = 525600;
+      if (parseInt(input.value, 10) >= 60) input.value = 10;
+    } else {
+      input.min = 1; input.max = 8760;
+      if (parseInt(input.value, 10) < 1) input.value = 24;
+    }
+  }
+
+  async function submitThreshold(clear) {
+    const ids = getSelectedIds();
+    if (ids.length === 0) { alert('Nenhum bot selecionado.'); return; }
+
+    let threshold = null;
+    let unit = 'hours';
+    let label = '';
+    if (!clear) {
+      unit = document.getElementById('thresholdUnit').value;
+      const raw = document.getElementById('thresholdInput').value;
+      threshold = parseInt(raw, 10);
+      if (!threshold || threshold < 1) { alert('Threshold inválido.'); return; }
+      label = threshold + (unit === 'minutes' ? 'min' : 'h');
+    }
+
+    const confirmMsg = clear
+      ? `Limpar threshold de ${ids.length} bot(s) (voltar ao default global)?`
+      : `Aplicar threshold de ${label} em ${ids.length} bot(s)?`;
+    if (!confirm(confirmMsg)) return;
+
+    const btn = document.getElementById('thresholdConfirmBtn');
+    btn.disabled = true;
+    const result = document.getElementById('thresholdResult');
+    result.className = 'text-sm p-3 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-300';
+    result.textContent = 'Aplicando...';
+    result.classList.remove('hidden');
+
+    const body = { bot_ids: ids };
+    if (clear) {
+      body.threshold_hours = null;
+      body.threshold_minutes = null;
+    } else if (unit === 'minutes') {
+      body.threshold_minutes = threshold;
+    } else {
+      body.threshold_hours = threshold;
+    }
+
+    try {
+      const resp = await fetch('{% url "bulk_set_silence_threshold" %}', {
+        method: 'POST',
+        headers: {
+          'X-CSRFToken': getCsrfCookie(),
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await resp.json();
+      if (!resp.ok || data.status !== 'success') {
+        result.className = 'text-sm p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300';
+        result.textContent = data.message || ('Erro ' + resp.status);
+      } else {
+        result.className = 'text-sm p-3 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-200';
+        result.textContent = data.message;
+        setTimeout(() => location.reload(), 1200);
+      }
+    } catch (e) {
+      result.className = 'text-sm p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300';
+      result.textContent = 'Erro de rede.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeThresholdModal(); });
+  document.addEventListener('DOMContentLoaded', updateSelection);
+</script>
+
+{% endblock %}

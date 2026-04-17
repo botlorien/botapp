@@ -1,13 +1,17 @@
 # botapp/rest_server.py
 
 import threading
+import logging
 from wsgiref.simple_server import make_server
 import os
 import django
 
+logger = logging.getLogger(__name__)
+
+
 def start_rest_server(port=8888):
     def run():
-        print(f"🔌 Iniciando servidor REST em http://127.0.0.1:{port}/api/")
+        logger.info("Iniciando servidor REST em http://127.0.0.1:%s/api/", port)
         os.environ.setdefault("DJANGO_SETTINGS_MODULE", "botapp.settings")
         django.setup()
         from django.core.wsgi import get_wsgi_application
@@ -16,4 +20,4 @@ def start_rest_server(port=8888):
         server.serve_forever()
 
     threading.Thread(target=run, daemon=True).start()
-    print("🔌 Servidor REST iniciado.")
+    logger.info("Servidor REST iniciado em thread daemon")

@@ -1,225 +1,296 @@
 {% extends "botapp/base.html" %}
 {% load static %}
 
-{% block title %}Dashboard de Bots{% endblock %}
+{% block title %}Dashboard | RPA Monitor{% endblock %}
 
 {% block extrahead %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-// Função para atualizar gráficos dinâmicos via AJAX
-function updateDynamicCharts() {
-    const startDate = document.querySelector('input[name="start_date"]').value;
-    const endDate = document.querySelector('input[name="end_date"]').value;
-    
-    fetch(`?start_date=${startDate}&end_date=${endDate}&ajax=1`)
-        .then(response => response.json())
-        .then(data => {
-            // Atualizar gráfico de status
-            statusChart.data.labels = data.status_labels;
-            statusChart.data.datasets[0].data = data.status_counts;
-            statusChart.update();
-            
-            // Atualizar gráfico de tempo de execução
-            executionTimeChart.data.labels = data.bot_names;
-            executionTimeChart.data.datasets[0].data = data.bot_durations;
-            executionTimeChart.update();
-        });
-}
-</script>
 {% endblock %}
 
 {% block content %}
-<div class="dashboard-container">
-  <h1>Dashboard de Bots RPA</h1>
-  
-  <!-- Seção de Métricas FIXAS -->
-  <div class="section-title">
-    <h2>Métricas Gerais</h2>
-    <p>Dados consolidados independentes de período</p>
-  </div>
-  
-  <div class="metrics-grid">
-    <div class="metric-card">
-      <h3>Total de Bots</h3>
-      <div class="metric-value">{{ total_bots }}</div>
-    </div>
-    
-    <div class="metric-card active">
-      <h3>Bots Ativos</h3>
-      <div class="metric-value">{{ active_bots }}</div>
-    </div>
-    
-    <div class="metric-card inactive">
-      <h3>Bots Inativos</h3>
-      <div class="metric-value">{{ inactive_bots }}</div>
-    </div>
-  </div>
-  
-  <!-- Gráfico FIXO -->
-  <div class="section-title">
-    <h2>Distribuição de Bots</h2>
-    <p>Por departamento (dados consolidados)</p>
-  </div>
-  
-  <div class="chart-card">
-    <canvas id="departmentChart"></canvas>
-  </div>
-  <div class="filters-card">
+<div class="space-y-6">
 
+  <!-- Hero -->
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-speedometer2 text-blue-400"></i> Dashboard
+      </h1>
+      <p class="text-slate-400 mt-1">Visão consolidada dos bots, execuções e saúde do sistema.</p>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="text-xs text-slate-500 mr-1">Período:</span>
+      <a href="?period=all"   class="chip {% if period == 'all' or not period %}chip-info{% else %}chip-muted{% endif %} hover:border-blue-500/50 transition">Tudo</a>
+      <a href="?period=today" class="chip {% if period == 'today' %}chip-info{% else %}chip-muted{% endif %} hover:border-blue-500/50 transition">Hoje</a>
+      <a href="?period=7d"    class="chip {% if period == '7d' %}chip-info{% else %}chip-muted{% endif %} hover:border-blue-500/50 transition">7d</a>
+      <a href="?period=30d"   class="chip {% if period == '30d' %}chip-info{% else %}chip-muted{% endif %} hover:border-blue-500/50 transition">30d</a>
+      <a href="?period=90d"   class="chip {% if period == '90d' %}chip-info{% else %}chip-muted{% endif %} hover:border-blue-500/50 transition">90d</a>
+    </div>
   </div>
-    <!-- Seção de Filtros (afeta apenas gráficos dinâmicos) -->
-    <div class="filters-card">
-        <h2>Filtros de Período</h2>
-        <form id="dashboardFilters" class="dashboard-filters">
-            <div class="filter-group">
-            <label>Data Início:</label>
-            <input type="date" name="start_date" value="{{ start_date }}">
-            </div>
-            <div class="filter-group">
-            <label>Data Fim:</label>
-            <input type="date" name="end_date" value="{{ end_date }}">
-            </div>
-            <button type="submit" class="filter-button">
-            <span class="icon">🔍</span> Aplicar Filtros
-            </button>
-        </form>
+
+  <!-- KPIs Overview -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+    <div class="glass-card p-5">
+      <div class="flex items-center justify-between">
+        <span class="fx-label">Total de Bots</span>
+        <i class="bi bi-robot text-slate-500"></i>
+      </div>
+      <div class="text-3xl font-bold text-slate-100 mt-1">{{ total_bots }}</div>
+    </div>
+
+    <div class="glass-card p-5 relative overflow-hidden">
+      <div class="absolute top-0 left-0 bottom-0 w-1 bg-emerald-500"></div>
+      <div class="flex items-center justify-between">
+        <span class="fx-label">Ativos</span>
+        <i class="bi bi-lightning-charge-fill text-emerald-400"></i>
+      </div>
+      <div class="text-3xl font-bold text-emerald-400 mt-1">{{ active_bots }}</div>
+    </div>
+
+    <div class="glass-card p-5 relative overflow-hidden">
+      <div class="absolute top-0 left-0 bottom-0 w-1 bg-slate-600"></div>
+      <div class="flex items-center justify-between">
+        <span class="fx-label">Inativos</span>
+        <i class="bi bi-pause-circle text-slate-500"></i>
+      </div>
+      <div class="text-3xl font-bold text-slate-400 mt-1">{{ inactive_bots }}</div>
+    </div>
+
+    <a href="{% url 'alert_list' %}" class="glass-card p-5 relative overflow-hidden block hover:scale-[1.02] transition">
+      <div class="absolute top-0 left-0 bottom-0 w-1 {% if active_alerts > 0 %}bg-red-500{% else %}bg-slate-700{% endif %}"></div>
+      <div class="flex items-center justify-between">
+        <span class="fx-label">Alertas Ativos</span>
+        <i class="bi bi-bell-fill {% if active_alerts > 0 %}text-red-400{% else %}text-slate-500{% endif %}"></i>
+      </div>
+      <div class="text-3xl font-bold mt-1 {% if active_alerts > 0 %}text-red-400{% else %}text-slate-400{% endif %}">{{ active_alerts }}</div>
+      {% if critical_alerts > 0 %}<div class="text-xs text-red-400 font-medium mt-1">{{ critical_alerts }} crítico(s)</div>{% endif %}
+    </a>
+
+    <div class="glass-card p-5 relative overflow-hidden">
+      <div class="absolute top-0 left-0 bottom-0 w-1 {% if silent_bots > 0 %}bg-amber-500{% else %}bg-slate-700{% endif %}"></div>
+      <div class="flex items-center justify-between">
+        <span class="fx-label">Silenciosos &gt;{{ silent_threshold_hours }}h</span>
+        <i class="bi bi-moon-stars {% if silent_bots > 0 %}text-amber-400{% else %}text-slate-500{% endif %}"></i>
+      </div>
+      <div class="text-3xl font-bold mt-1 {% if silent_bots > 0 %}text-amber-400{% else %}text-slate-400{% endif %}">{{ silent_bots }}</div>
+    </div>
+  </div>
+
+  <!-- Filtros customizados -->
+  <form class="glass-card p-4 flex items-end gap-3 flex-wrap">
+    <div>
+      <label class="fx-label">Data Início</label>
+      <input type="date" name="start_date" value="{{ start_date }}" class="fx-input" style="min-width:150px">
+    </div>
+    <div>
+      <label class="fx-label">Data Fim</label>
+      <input type="date" name="end_date" value="{{ end_date }}" class="fx-input" style="min-width:150px">
+    </div>
+    <button type="submit" class="btn-primary"><i class="bi bi-funnel"></i> Aplicar</button>
+    <a href="?" class="btn-ghost">Limpar</a>
+  </form>
+
+  <!-- KPIs de Performance -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="glass-card p-5">
+      <span class="fx-label">Execuções no Período</span>
+      <div class="text-3xl font-bold text-slate-100 mt-1">{{ total_runs|default:"0" }}</div>
+      <div class="flex items-center gap-3 mt-2 text-xs">
+        <span class="text-emerald-400"><i class="bi bi-check-circle-fill"></i> {{ completed_runs }}</span>
+        <span class="text-red-400"><i class="bi bi-x-circle-fill"></i> {{ failed_runs }}</span>
+      </div>
+    </div>
+
+    <div class="glass-card p-5 relative overflow-hidden">
+      <div class="absolute top-0 left-0 bottom-0 w-1
+        {% if success_rate is not None and success_rate >= 99 %}bg-emerald-500
+        {% elif success_rate is not None and success_rate < 90 %}bg-amber-500
+        {% else %}bg-blue-500{% endif %}"></div>
+      <span class="fx-label">Taxa de Sucesso</span>
+      <div class="text-3xl font-bold mt-1
+        {% if success_rate is not None and success_rate >= 99 %}text-emerald-400
+        {% elif success_rate is not None and success_rate < 90 %}text-amber-400
+        {% else %}text-slate-100{% endif %}">
+        {% if success_rate is not None %}{{ success_rate }}%{% else %}—{% endif %}
+      </div>
+      {% if success_rate is not None %}
+      <div class="mt-3 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+        <div class="h-full rounded-full transition-all
+          {% if success_rate >= 99 %}bg-emerald-500{% elif success_rate < 90 %}bg-amber-500{% else %}bg-blue-500{% endif %}"
+          style="width:{{ success_rate }}%"></div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="glass-card p-5">
+      <span class="fx-label">Duração Média</span>
+      <div class="text-3xl font-bold text-slate-100 mt-1">
+        {% if avg_duration_s %}{{ avg_duration_s|floatformat:1 }}<span class="text-lg text-slate-500">s</span>{% else %}—{% endif %}
+      </div>
+      {% if p50_duration_s %}
+      <div class="flex items-center gap-3 mt-2 text-xs text-slate-400">
+        <span>p50 <span class="text-slate-200 font-medium">{{ p50_duration_s|floatformat:1 }}s</span></span>
+        <span>p95 <span class="text-slate-200 font-medium">{{ p95_duration_s|floatformat:1 }}s</span></span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="glass-card p-5">
+      <h3 class="text-sm font-semibold text-slate-300 mb-3">Status das Execuções</h3>
+      <canvas id="statusChart" height="240"></canvas>
+    </div>
+    <div class="glass-card p-5 lg:col-span-2">
+      <h3 class="text-sm font-semibold text-slate-300 mb-3">Bots por Departamento</h3>
+      <canvas id="departmentChart" height="240"></canvas>
+    </div>
+  </div>
+
+  <div class="glass-card p-5">
+    <h3 class="text-sm font-semibold text-slate-300 mb-3">Top 10 Bots por Tempo de Execução (horas)</h3>
+    <canvas id="executionTimeChart" height="150"></canvas>
+  </div>
+
+  <!-- Heatmap -->
+  <div class="glass-card p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="text-sm font-semibold text-slate-300">Padrão de Execuções (dia × hora)</h3>
+      <div class="flex items-center gap-2 text-xs text-slate-500">
+        <span>baixa</span>
+        <div class="flex gap-0.5">
+          <div class="w-3 h-3 rounded-sm" style="background:rgba(59,130,246,.15)"></div>
+          <div class="w-3 h-3 rounded-sm" style="background:rgba(59,130,246,.35)"></div>
+          <div class="w-3 h-3 rounded-sm" style="background:rgba(59,130,246,.6)"></div>
+          <div class="w-3 h-3 rounded-sm" style="background:rgba(59,130,246,.85)"></div>
         </div>
+        <span>alta</span>
+      </div>
+    </div>
+    <div id="heatmap" class="overflow-x-auto"></div>
+  </div>
 
-  <!-- Seção de Gráficos DINÂMICOS -->
-  <div class="section-title">
-    <h2>Métricas de Execução</h2>
-    <p>Dados filtrados por período selecionado</p>
-  </div>
-  
-  <div class="charts-grid">
-    <div class="chart-card">
-      <h3>Status das Execuções</h3>
-      <canvas id="statusChart"></canvas>
+  <!-- Top failing -->
+  {% if top_failing %}
+  <div class="glass-card p-5">
+    <h3 class="text-sm font-semibold text-slate-300 mb-3">
+      <i class="bi bi-exclamation-triangle-fill text-red-400"></i> Top Bots com Mais Falhas
+    </h3>
+    <div class="overflow-x-auto">
+      <table class="fx-table">
+        <thead>
+          <tr>
+            <th>Bot</th>
+            <th class="text-right">Falhas</th>
+            <th class="text-right">Total</th>
+            <th class="text-right">Taxa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in top_failing %}
+          <tr>
+            <td class="font-medium">{{ row.name }}</td>
+            <td class="text-right"><span class="chip chip-danger">{{ row.fail }}</span></td>
+            <td class="text-right text-slate-400">{{ row.total }}</td>
+            <td class="text-right">
+              <span class="font-semibold {% if row.rate >= 30 %}text-red-400{% elif row.rate >= 10 %}text-amber-400{% else %}text-slate-300{% endif %}">{{ row.rate }}%</span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-    
-    <div class="chart-card full-width">
-      <h3>Tempo Total de Execução por Bot (horas)</h3>
-      <canvas id="executionTimeChart"></canvas>
-    </div>
   </div>
+  {% endif %}
 </div>
 
 <script>
-  // Gráfico FIXO - Bots por Departamento
-  const departmentCtx = document.getElementById('departmentChart').getContext('2d');
-  const departmentChart = new Chart(departmentCtx, {
-    type: 'bar',
-    data: {
-      labels: {{ departments_json|safe }},
-      datasets: [{
-        label: 'Bots por Departamento',
-        data: {{ department_counts_json|safe }},
-        backgroundColor: 'rgba(54, 162, 235, 0.7)',
-        borderColor: 'rgba(54, 162, 235, 1)',
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          display: false
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            stepSize: 1
-          }
-        }
-      }
-    }
-  });
+  // Tema escuro padrão para Chart.js
+  Chart.defaults.color = '#cbd5e1';
+  Chart.defaults.borderColor = 'rgba(51,65,85,0.4)';
+  Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
 
-  // Gráfico DINÂMICO - Status das Execuções
-  const statusCtx = document.getElementById('statusChart').getContext('2d');
-  const statusChart = new Chart(statusCtx, {
+  // Status
+  new Chart(document.getElementById('statusChart'), {
     type: 'doughnut',
     data: {
       labels: {{ status_labels_json|safe }},
       datasets: [{
         data: {{ status_counts_json|safe }},
-        backgroundColor: [
-          'rgba(255, 99, 132, 0.7)',
-          'rgba(75, 192, 192, 0.7)',
-          'rgba(255, 205, 86, 0.7)'
-        ],
-        borderColor: [
-          'rgba(255, 99, 132, 1)',
-          'rgba(75, 192, 192, 1)',
-          'rgba(255, 205, 86, 1)'
-        ],
-        borderWidth: 1
+        backgroundColor: ['rgba(59,130,246,0.7)','rgba(16,185,129,0.7)','rgba(239,68,68,0.7)','rgba(245,158,11,0.7)'],
+        borderColor: ['#3b82f6','#10b981','#ef4444','#f59e0b'],
+        borderWidth: 1,
+      }]
+    },
+    options: { plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 11 } } } } }
+  });
+
+  // Dept
+  new Chart(document.getElementById('departmentChart'), {
+    type: 'bar',
+    data: {
+      labels: {{ departments_json|safe }},
+      datasets: [{
+        data: {{ department_counts_json|safe }},
+        backgroundColor: 'rgba(59,130,246,0.6)',
+        borderColor: '#3b82f6',
+        borderWidth: 1,
       }]
     },
     options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          position: 'bottom'
-        }
-      }
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
     }
   });
 
-  // Gráfico DINÂMICO - Tempo de Execução
-  const executionCtx = document.getElementById('executionTimeChart').getContext('2d');
-  const executionTimeChart = new Chart(executionCtx, {
+  // Execution time
+  new Chart(document.getElementById('executionTimeChart'), {
     type: 'bar',
     data: {
       labels: {{ bot_names_json|safe }},
       datasets: [{
-        label: 'Horas de Execução',
         data: {{ bot_durations_json|safe }},
-        backgroundColor: 'rgba(153, 102, 255, 0.7)',
-        borderColor: 'rgba(153, 102, 255, 1)',
-        borderWidth: 1
+        backgroundColor: 'rgba(79,70,229,0.6)',
+        borderColor: '#4f46e5',
+        borderWidth: 1,
       }]
     },
     options: {
-      responsive: true,
-      plugins: {
-        legend: {
-          display: false
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          title: {
-            display: true,
-            text: 'Horas'
-          }
-        }
-      }
+      indexAxis: 'y',
+      plugins: { legend: { display: false } },
+      scales: { x: { beginAtZero: true, title: { display: true, text: 'Horas', color: '#94a3b8' } } }
     }
   });
-</script>
 
-<style>
-  .section-title {
-    margin: 30px 0 15px 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border);
-  }
-  
-  .section-title h2 {
-    margin: 0;
-    color: var(--text);
-  }
-  
-  .section-title p {
-    margin: 5px 0 0 0;
-    font-size: 14px;
-    color: var(--text-light);
-  }
-  
-  /* Restante dos estilos mantido igual */
-</style>
+  // Heatmap (grid CSS)
+  (function(){
+    const el = document.getElementById('heatmap');
+    if (!el) return;
+    const data = {{ heatmap_json|safe }};
+    const days = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+    let max = 0;
+    for (const row of data) for (const v of row) if (v > max) max = v;
+
+    function cellColor(v) {
+      if (!v) return 'rgba(30,41,59,0.5)';
+      const t = Math.min(1, v / Math.max(max, 1));
+      const alpha = 0.15 + t * 0.75;
+      return `rgba(59,130,246,${alpha.toFixed(3)})`;
+    }
+
+    let html = '<div style="display:grid;grid-template-columns:40px repeat(24, minmax(28px, 1fr));gap:2px;min-width:700px;">';
+    html += '<div></div>';
+    for (let h = 0; h < 24; h++) html += `<div style="text-align:center;font-size:.65rem;color:#64748b;">${h}</div>`;
+    for (let d = 0; d < 7; d++) {
+      html += `<div style="text-align:right;font-size:.7rem;color:#94a3b8;font-weight:600;padding-right:6px;display:flex;align-items:center;justify-content:flex-end">${days[d]}</div>`;
+      for (let h = 0; h < 24; h++) {
+        const v = data[d][h];
+        html += `<div style="background:${cellColor(v)};border-radius:3px;font-size:.62rem;text-align:center;padding:3px 1px;color:#e2e8f0;min-height:22px;" title="${days[d]} ${h}h · ${v} execuções">${v || ''}</div>`;
+      }
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  })();
+</script>
 {% endblock %}

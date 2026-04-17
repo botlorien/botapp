@@ -1,97 +1,170 @@
 {% extends "botapp/base.html" %}
 {% load static %}
 
-{% block title %}RPA | Lista de Bots{% endblock %}
+{% block title %}Bots | RPA Monitor{% endblock %}
 
 {% block content %}
-<div class="bot-list-container">
-  <div class="section-header">
-    <h1>Bots Disponíveis - {{ total_bots }}</h1>
-    
-    <form method="get" class="bot-filter-bar">
-      <div class="filter-group">
-        <label>Nome:</label>
-        <input type="text" name="name" value="{{ request.GET.name }}" placeholder="Filtrar por nome">
+<div class="space-y-6">
+
+  <!-- Hero -->
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-robot text-blue-400"></i>
+        Bots Disponíveis
+      </h1>
+      <p class="text-slate-400 mt-1">
+        {{ total_bots }} bot(s) cadastrado(s) · <span class="text-slate-500">ordenados por última execução</span>
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="text-xs text-slate-500 mr-1">Período:</span>
+      <a href="?" class="chip chip-muted hover:border-blue-500/50 transition">Tudo</a>
+      <a href="?start_date={{ today_iso }}" class="chip chip-muted hover:border-blue-500/50 transition">Hoje</a>
+      <a href="?start_date={{ seven_days_ago_iso }}" class="chip chip-muted hover:border-blue-500/50 transition">7d</a>
+      <a href="?start_date={{ thirty_days_ago_iso }}" class="chip chip-muted hover:border-blue-500/50 transition">30d</a>
+      <a href="?start_date={{ ninety_days_ago_iso }}" class="chip chip-muted hover:border-blue-500/50 transition">90d</a>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" class="glass-card p-4 sm:p-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div>
+        <label class="fx-label">Nome</label>
+        <input type="text" name="name" value="{{ request.GET.name }}" placeholder="Filtrar por nome" class="fx-input">
       </div>
-      
-      <div class="filter-group">
-        <label>Departamento:</label>
-        <input type="text" name="department" value="{{ request.GET.department }}" placeholder="Filtrar por departamento">
+
+      <div>
+        <label class="fx-label">Departamento</label>
+        <input type="text" name="department" list="departments-datalist"
+               value="{{ request.GET.department }}" placeholder="Digite ou escolha" autocomplete="off" class="fx-input">
+        <datalist id="departments-datalist">
+          {% for dept in departments %}<option value="{{ dept }}"></option>{% endfor %}
+        </datalist>
       </div>
-      
-      <div class="filter-group">
-        <label>Situação:</label>
-        <select name="is_active">
+
+      <div>
+        <label class="fx-label">Situação</label>
+        <select name="is_active" class="fx-select">
           <option value="">Todos</option>
-          <option value="true" {% if request.GET.is_active == "true" %}selected{% endif %}>Ativos</option>
+          <option value="true"  {% if request.GET.is_active == "true" %}selected{% endif %}>Ativos</option>
           <option value="false" {% if request.GET.is_active == "false" %}selected{% endif %}>Inativos</option>
         </select>
       </div>
-      
-      <div class="filter-group">
-        <label>Último Status:</label>
-        <select name="last_status">
-          <option value="">Todos</option>
-          <option value="started" {% if request.GET.last_status == "started" %}selected{% endif %}>Iniciado</option>
-          <option value="completed" {% if request.GET.last_status == "completed" %}selected{% endif %}>Completo</option>
-          <option value="failed" {% if request.GET.last_status == "failed" %}selected{% endif %}>Falhou</option>
-        </select>
-      </div>
-      <div class="filter-group">
-        <label>Início:</label>
-        <input type="date" name="start_date" value="{{ request.GET.start_date }}">
-      </div>
-      <div class="filter-group">
-        <label>Fim:</label>
-        <input type="date" name="end_date" value="{{ request.GET.end_date }}">
-      </div>
-      
-      <div class="filter-group">
-        <label>Tipo de Filtro:</label>
-        <select name="filter_mode">
-          <option value="in" {% if request.GET.filter_mode == "in" %}selected{% endif %}>Está dentro dos critérios</option>
-          <option value="not_in" {% if request.GET.filter_mode == "not_in" %}selected{% endif %}>Está fora dos critérios</option>
-        </select>
-      </div>
-      
-      <button type="submit" class="filter-button">
-        <span class="icon">🔍</span> Filtrar
-      </button>
-    </form>
-  </div>
 
-  <div class="bot-grid">
+      <div>
+        <label class="fx-label">Último Status</label>
+        <select name="last_status" class="fx-select">
+          <option value="">Todos</option>
+          <option value="started"   {% if request.GET.last_status == "started" %}selected{% endif %}>Iniciado</option>
+          <option value="completed" {% if request.GET.last_status == "completed" %}selected{% endif %}>Completo</option>
+          <option value="failed"    {% if request.GET.last_status == "failed" %}selected{% endif %}>Falhou</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="fx-label">Início</label>
+        <input type="date" name="start_date" value="{{ request.GET.start_date }}" class="fx-input">
+      </div>
+
+      <div>
+        <label class="fx-label">Fim</label>
+        <input type="date" name="end_date" value="{{ request.GET.end_date }}" class="fx-input">
+      </div>
+
+      <div>
+        <label class="fx-label">Modo</label>
+        <select name="filter_mode" class="fx-select">
+          <option value="in"     {% if request.GET.filter_mode == "in" %}selected{% endif %}>Inclui</option>
+          <option value="not_in" {% if request.GET.filter_mode == "not_in" %}selected{% endif %}>Exclui</option>
+        </select>
+      </div>
+
+      <div class="flex items-end gap-2">
+        <button type="submit" class="btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+        <a href="{% url 'bot_list' %}" class="btn-ghost">Limpar</a>
+      </div>
+    </div>
+  </form>
+
+  <!-- Grid de bots -->
+  {% if bots %}
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
     {% for bot in bots %}
-    <a href="{% url 'bot_detail' bot.id %}" class="bot-card">
-      <div class="status-indicator status-{{ bot.latest_status|default:'unknown'|lower }}"></div>
-      <div class="bot-icon">🤖</div>
-      <h2>{{ bot.name }}</h2>
-      
-      <div class="bot-status">
-        <span class="badge {% if bot.is_active %}active{% else %}inactive{% endif %}">
-          {{ bot.is_active|yesno:"Ativo,Inativo" }}
-        </span>
-        {% if bot.latest_status %}
-        <span class="badge status-{{ bot.latest_status|lower }}">
-          {{ bot.latest_status|title }}
-        </span>
+    <div class="glass-card p-5 transition hover:translate-y-[-2px] hover:shadow-lg hover:shadow-blue-500/10 relative overflow-hidden group">
+      <!-- Accent border por status -->
+      <div class="absolute top-0 left-0 right-0 h-1
+        {% if bot.latest_status == 'completed' %}bg-emerald-500
+        {% elif bot.latest_status == 'failed' %}bg-red-500
+        {% elif bot.latest_status == 'started' %}bg-blue-500
+        {% else %}bg-slate-700{% endif %}"></div>
+
+      <a href="{% url 'bot_detail' bot.id %}" class="block">
+        <div class="flex items-start justify-between gap-3">
+          <div class="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/30 flex items-center justify-center shrink-0 group-hover:bg-blue-500/20 transition">
+            <i class="bi bi-robot text-blue-400 text-lg"></i>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+            {% if bot.is_active %}
+              <span class="chip chip-success"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>Ativo</span>
+            {% else %}
+              <span class="chip chip-muted">Inativo</span>
+            {% endif %}
+            {% if bot.latest_status %}
+              <span class="chip
+                {% if bot.latest_status == 'completed' %}chip-success
+                {% elif bot.latest_status == 'failed' %}chip-danger
+                {% elif bot.latest_status == 'started' %}chip-info
+                {% else %}chip-muted{% endif %}">
+                {{ bot.latest_status|title }}
+              </span>
+            {% endif %}
+          </div>
+        </div>
+
+        <h3 class="mt-3 font-semibold text-slate-100 line-clamp-2 leading-tight">{{ bot.name }}</h3>
+
+        <div class="mt-2 flex items-center gap-2 text-xs text-slate-400 flex-wrap">
+          {% if bot.department %}<span class="inline-flex items-center gap-1"><i class="bi bi-building"></i>{{ bot.department }}</span>{% endif %}
+          {% if bot.version %}<span class="inline-flex items-center gap-1"><i class="bi bi-tag"></i>v{{ bot.version }}</span>{% endif %}
+          {% if bot.silence_threshold_minutes %}<span class="inline-flex items-center gap-1 text-amber-300" title="Threshold de silêncio"><i class="bi bi-stopwatch"></i>{{ bot.silence_threshold_minutes }}min</span>
+          {% elif bot.silence_threshold_hours %}<span class="inline-flex items-center gap-1 text-amber-300" title="Threshold de silêncio"><i class="bi bi-stopwatch"></i>{{ bot.silence_threshold_hours }}h</span>{% endif %}
+        </div>
+
+        {% if bot.last_execution_at %}
+        <div class="mt-2 text-xs text-slate-500">
+          <i class="bi bi-clock-history"></i> {{ bot.last_execution_at|date:"d/m/Y H:i" }}
+        </div>
         {% endif %}
-      </div>
-      
-      <div class="meta">
-        <span><strong>Departamento:</strong> {{ bot.department }}</span>
-        <span><strong>Versão:</strong> {{ bot.version }}</span>
-      </div>
-      
-      <p class="bot-description">{{ bot.description|truncatechars:100 }}</p>
-    </a>
-    {% empty %}
-    <div class="no-bots">
-      <p>Nenhum bot encontrado com os filtros aplicados.</p>
-      <a href="{% url 'bot_list' %}" class="clear-filters">Limpar filtros</a>
+
+        {% if bot.description %}
+        <p class="mt-3 text-sm text-slate-400 line-clamp-2">{{ bot.description|truncatechars:120 }}</p>
+        {% endif %}
+      </a>
     </div>
     {% endfor %}
   </div>
+
+  <!-- Paginação -->
+  <div class="fx-pagination">
+    {% if page_obj.has_previous %}
+      <a href="?page={{ page_obj.previous_page_number }}{% for k,v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}">&laquo;</a>
+    {% endif %}
+    <span class="current">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?page={{ page_obj.next_page_number }}{% for k,v in request.GET.items %}{% if k != 'page' %}&{{ k }}={{ v }}{% endif %}{% endfor %}">&raquo;</a>
+    {% endif %}
+  </div>
+
+  {% else %}
+  <div class="glass-card p-12 text-center">
+    <i class="bi bi-search text-slate-600 text-4xl"></i>
+    <p class="mt-3 text-slate-400">Nenhum bot encontrado com os filtros aplicados.</p>
+    <a href="{% url 'bot_list' %}" class="btn-ghost mt-4 inline-flex">Limpar filtros</a>
+  </div>
+  {% endif %}
 </div>
 
 {% endblock %}

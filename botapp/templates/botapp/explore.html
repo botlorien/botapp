@@ -1,0 +1,147 @@
+{% extends "botapp/base.html" %}
+{% load static %}
+
+{% block title %}Explorador | RPA Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- Hero -->
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-table text-emerald-400"></i> Explorador de Execuções
+      </h1>
+      <p class="text-slate-400 mt-1">{{ total }} execução(ões) correspondendo aos filtros.</p>
+    </div>
+    <a href="{% url 'explore_export_csv' %}?{{ querystring }}"
+       class="btn-primary" style="background: linear-gradient(135deg, #059669, #10b981);">
+      <i class="bi bi-download"></i> Exportar CSV
+    </a>
+  </div>
+
+  <!-- Filtros -->
+  <form method="get" class="glass-card p-4">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      <div class="col-span-2 lg:col-span-1">
+        <label class="fx-label">Busca livre</label>
+        <input type="text" name="q" value="{{ request.GET.q }}" placeholder="bot ou task..." class="fx-input">
+      </div>
+      <div>
+        <label class="fx-label">Bot</label>
+        <select name="bot" class="fx-select">
+          <option value="">Todos</option>
+          {% for b in bots %}
+            <option value="{{ b.id }}" {% if request.GET.bot == b.id|stringformat:"s" %}selected{% endif %}>{{ b.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="fx-label">Task</label>
+        <input type="text" name="task" value="{{ request.GET.task }}" class="fx-input">
+      </div>
+      <div>
+        <label class="fx-label">Status</label>
+        <select name="status" class="fx-select">
+          <option value="">Todos</option>
+          <option value="started"   {% if request.GET.status == "started" %}selected{% endif %}>Iniciado</option>
+          <option value="completed" {% if request.GET.status == "completed" %}selected{% endif %}>Completo</option>
+          <option value="failed"    {% if request.GET.status == "failed" %}selected{% endif %}>Falhou</option>
+        </select>
+      </div>
+      <div>
+        <label class="fx-label">Ambiente</label>
+        <select name="env" class="fx-select">
+          <option value="">Todos</option>
+          {% for e in envs %}<option value="{{ e }}" {% if request.GET.env == e %}selected{% endif %}>{{ e }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="fx-label">Host</label>
+        <input type="text" name="host" value="{{ request.GET.host }}" class="fx-input">
+      </div>
+      <div>
+        <label class="fx-label">Exceção</label>
+        <input type="text" name="exception_type" value="{{ request.GET.exception_type }}" class="fx-input">
+      </div>
+      <div>
+        <label class="fx-label">Trigger</label>
+        <select name="manual_trigger" class="fx-select">
+          <option value="">Todos</option>
+          <option value="true"  {% if request.GET.manual_trigger == "true" %}selected{% endif %}>Manual</option>
+          <option value="false" {% if request.GET.manual_trigger == "false" %}selected{% endif %}>Agendado</option>
+        </select>
+      </div>
+      <div>
+        <label class="fx-label">Data Início</label>
+        <input type="date" name="start_date" value="{{ request.GET.start_date }}" class="fx-input">
+      </div>
+      <div>
+        <label class="fx-label">Data Fim</label>
+        <input type="date" name="end_date" value="{{ request.GET.end_date }}" class="fx-input">
+      </div>
+    </div>
+    <div class="flex items-center gap-2 mt-4">
+      <button type="submit" class="btn-primary"><i class="bi bi-funnel"></i> Filtrar</button>
+      <a href="{% url 'explore' %}" class="btn-ghost">Limpar</a>
+    </div>
+  </form>
+
+  <!-- Tabela -->
+  <div class="glass-card overflow-hidden">
+    <div class="overflow-x-auto max-h-[70vh]">
+      <table class="fx-table">
+        <thead>
+          <tr>
+            <th>ID</th><th>Bot</th><th>Task</th><th>Status</th>
+            <th>Início</th><th>Fim</th><th>Duração</th>
+            <th>Exceção</th><th>Env</th><th>Host</th>
+            <th>SO</th><th>Usuário</th><th>Trigger</th><th class="text-center">Manual</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td><a href="{% url 'log_detail' log.id %}" class="text-blue-400 hover:text-blue-300 font-medium">#{{ log.id }}</a></td>
+            <td>{% if log.task_id and log.task.bot_id %}<a href="{% url 'bot_detail' log.task.bot_id %}" class="text-slate-200 hover:text-blue-400">{{ log.task.bot.name }}</a>{% else %}<span class="text-slate-500">—</span>{% endif %}</td>
+            <td class="text-slate-300">{{ log.task.name|default:"—" }}</td>
+            <td>
+              {% if log.status == 'completed' %}<span class="chip chip-success">{{ log.get_status_display }}</span>
+              {% elif log.status == 'failed' %}<span class="chip chip-danger">{{ log.get_status_display }}</span>
+              {% elif log.status == 'started' %}<span class="chip chip-info">{{ log.get_status_display }}</span>
+              {% else %}<span class="chip chip-muted">{{ log.status }}</span>{% endif %}
+            </td>
+            <td class="text-slate-400 text-xs">{{ log.start_time|date:"d/m H:i:s" }}</td>
+            <td class="text-slate-400 text-xs">{{ log.end_time|date:"d/m H:i:s"|default:"—" }}</td>
+            <td class="text-slate-300 text-xs">{{ log.duration|default:"—" }}</td>
+            <td>{% if log.exception_type %}<span class="chip chip-danger">{{ log.exception_type|truncatechars:20 }}</span>{% else %}<span class="text-slate-600">—</span>{% endif %}</td>
+            <td class="text-slate-400 text-xs">{{ log.env|default:"—" }}</td>
+            <td class="text-slate-400 text-xs">{{ log.host_name|default:"—" }}</td>
+            <td class="text-slate-500 text-xs">{{ log.os_platform|truncatechars:20|default:"—" }}</td>
+            <td class="text-slate-400 text-xs">{{ log.user_login|default:"—" }}</td>
+            <td class="text-slate-400 text-xs">{{ log.trigger_source|default:"—" }}</td>
+            <td class="text-center">{% if log.manual_trigger %}<i class="bi bi-person-fill text-blue-400"></i>{% else %}<i class="bi bi-clock text-slate-500"></i>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="14" class="text-center py-12 text-slate-500">
+            <i class="bi bi-search text-3xl"></i>
+            <p class="mt-2">Nenhum log encontrado.</p>
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Paginação -->
+  <div class="fx-pagination">
+    {% if page_obj.has_previous %}
+      <a href="?{{ querystring }}&page={{ page_obj.previous_page_number }}">&laquo;</a>
+    {% endif %}
+    <span class="current">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a href="?{{ querystring }}&page={{ page_obj.next_page_number }}">&raquo;</a>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

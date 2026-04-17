@@ -1,149 +1,154 @@
-{% extends "botapp/base.html" %}
 {% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login | RPA Monitoramento</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233b82f6'/%3E%3Cpath d='M7 10h10v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6zm2-4h6a2 2 0 0 1 2 2v1H7V8a2 2 0 0 1 2-2zm1 7h1v2h-1zm3 0h1v2h-1z' fill='%23fff'/%3E%3C/svg%3E">
 
-{% block title %}Login | RPA Monitoramento{% endblock %}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
 
-{% block extrastyle %}
-<link rel="stylesheet" href="{% static 'admin/css/custom.css' %}">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-<style>
-  .login-container {
-    max-width: 400px;
-    margin: 50px auto;
-    padding: 30px;
-    background: var(--panel);
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    border: 1px solid var(--border);
-  }
+  <style>
+    html, body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(59,130,246,.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(59,130,246,.1) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .glow {
+      box-shadow: 0 0 80px -20px rgba(59,130,246,.5);
+    }
+    .login-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+    }
+    @keyframes float {
+      0%,100% { transform: translateY(0px); }
+      50%     { transform: translateY(-8px); }
+    }
+    .floating { animation: float 6s ease-in-out infinite; }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100">
 
-  .login-header {
-    text-align: center;
-    margin-bottom: 30px;
-  }
+  <div class="min-h-screen grid lg:grid-cols-2">
 
-  .login-header h1 {
-    font-size: 24px;
-    color: var(--text);
-    margin-bottom: 10px;
-  }
+    <!-- Lado esquerdo: brand/hero -->
+    <div class="hidden lg:flex relative grid-bg bg-gradient-to-br from-slate-900 via-slate-950 to-blue-950 overflow-hidden flex-col justify-between p-12">
+      <div class="absolute top-1/4 -right-20 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl"></div>
+      <div class="absolute bottom-1/4 -left-20 w-96 h-96 bg-indigo-500/15 rounded-full blur-3xl"></div>
 
-  .login-icon {
-    font-size: 40px;
-    color: var(--primary);
-    margin-bottom: 15px;
-  }
+      <div class="relative z-10 flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
+          <i class="bi bi-cpu-fill text-blue-400 text-xl"></i>
+        </div>
+        <span class="font-semibold tracking-tight">RPA Monitor</span>
+      </div>
 
-  .login-form .form-group {
-    margin-bottom: 20px;
-  }
+      <div class="relative z-10 floating">
+        <h1 class="text-5xl font-bold tracking-tight leading-tight">
+          Observabilidade de<br>
+          <span class="bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">robôs em produção.</span>
+        </h1>
+        <p class="mt-5 text-slate-400 text-lg max-w-md leading-relaxed">
+          Dashboards em tempo real, alertas inteligentes e exploração de execuções — tudo em um só lugar.
+        </p>
 
-  .login-form label {
-    display: block;
-    margin-bottom: 8px;
-    color: var(--text);
-    font-weight: 500;
-  }
+        <div class="mt-10 grid grid-cols-3 gap-4 max-w-md">
+          <div class="rounded-lg border border-slate-800 bg-slate-900/60 backdrop-blur p-4">
+            <i class="bi bi-speedometer2 text-blue-400 text-xl"></i>
+            <div class="mt-2 text-xs text-slate-400">Métricas</div>
+            <div class="text-sm font-semibold">MTBF · p95</div>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900/60 backdrop-blur p-4">
+            <i class="bi bi-bell-fill text-amber-400 text-xl"></i>
+            <div class="mt-2 text-xs text-slate-400">Alertas</div>
+            <div class="text-sm font-semibold">Slack · Email</div>
+          </div>
+          <div class="rounded-lg border border-slate-800 bg-slate-900/60 backdrop-blur p-4">
+            <i class="bi bi-table text-emerald-400 text-xl"></i>
+            <div class="mt-2 text-xs text-slate-400">Export</div>
+            <div class="text-sm font-semibold">CSV stream</div>
+          </div>
+        </div>
+      </div>
 
-  .login-form input[type="text"],
-  .login-form input[type="password"] {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--panel);
-    color: var(--text);
-  }
-
-  .login-form input:focus {
-    outline: none;
-    border-color: var(--primary);
-  }
-
-  .submit-row {
-    margin-top: 30px;
-  }
-
-  .submit-row input[type="submit"] {
-    width: 100%;
-    padding: 12px;
-    background-color: var(--primary);
-    color: var(--text);
-    border: none;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s;
-  }
-
-  .submit-row input[type="submit"]:hover {
-    background-color: var(--link-hover);
-  }
-
-  .login-links {
-    margin-top: 20px;
-    text-align: center;
-    font-size: 14px;
-  }
-
-  .login-links a {
-    color: var(--link);
-  }
-
-  .login-links a:hover {
-    text-decoration: underline;
-  }
-
-  .errorlist {
-    color: var(--red);
-    margin-bottom: 15px;
-    padding-left: 20px;
-  }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="login-container">
-  <div class="login-header">
-    <div class="login-icon">
-      <i class="bi bi-shield-lock"></i>
+      <div class="relative z-10 text-xs text-slate-500">
+        &copy; {% now "Y" %} RPA Monitor · botapp SDK
+      </div>
     </div>
-    <h1>Acesso ao Sistema</h1>
+
+    <!-- Lado direito: formulário -->
+    <div class="flex items-center justify-center p-6 sm:p-12 bg-slate-950">
+      <div class="w-full max-w-md">
+        <div class="lg:hidden flex items-center gap-3 mb-10">
+          <div class="w-10 h-10 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center">
+            <i class="bi bi-cpu-fill text-blue-400 text-xl"></i>
+          </div>
+          <span class="font-semibold tracking-tight">RPA Monitor</span>
+        </div>
+
+        <h2 class="text-3xl font-bold tracking-tight">Bem-vindo de volta</h2>
+        <p class="mt-2 text-slate-400">Entre com suas credenciais para acessar o painel.</p>
+
+        {% if form.errors %}
+        <div class="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300 flex items-start gap-2">
+          <i class="bi bi-exclamation-triangle-fill mt-0.5"></i>
+          <div>
+            {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+            {% if not form.non_field_errors %}Usuário ou senha inválidos.{% endif %}
+          </div>
+        </div>
+        {% endif %}
+
+        <form method="post" class="mt-8 space-y-5">
+          {% csrf_token %}
+          <input type="hidden" name="next" value="{{ next }}">
+
+          <div>
+            <label for="id_username" class="block text-sm font-medium text-slate-300 mb-1.5">Usuário</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                <i class="bi bi-person-fill"></i>
+              </span>
+              <input type="text" name="username" id="id_username" autocomplete="username" required
+                class="login-input w-full rounded-lg border border-slate-800 bg-slate-900 pl-10 pr-3 py-2.5 text-slate-100 placeholder-slate-600 transition">
+            </div>
+          </div>
+
+          <div>
+            <label for="id_password" class="block text-sm font-medium text-slate-300 mb-1.5">Senha</label>
+            <div class="relative">
+              <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                <i class="bi bi-lock-fill"></i>
+              </span>
+              <input type="password" name="password" id="id_password" autocomplete="current-password" required
+                class="login-input w-full rounded-lg border border-slate-800 bg-slate-900 pl-10 pr-3 py-2.5 text-slate-100 placeholder-slate-600 transition">
+            </div>
+          </div>
+
+          <button type="submit"
+            class="glow w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 py-2.5 font-semibold text-white transition flex items-center justify-center gap-2">
+            <i class="bi bi-box-arrow-in-right"></i>
+            Entrar
+          </button>
+
+          {% url 'password_reset' as reset_url %}
+          {% if reset_url %}
+          <div class="text-center text-sm text-slate-400">
+            <a href="{{ reset_url }}" class="hover:text-blue-400 transition">Esqueceu sua senha?</a>
+          </div>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
   </div>
-
-  {% if form.errors %}
-  <div class="errorlist">
-    {% for error in form.non_field_errors %}
-      <li>{{ error }}</li>
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  <form method="post" class="login-form">
-    {% csrf_token %}
-    <input type="hidden" name="next" value="{{ next }}">
-
-    <div class="form-group">
-      <label for="id_username">Usuário</label>
-      <input type="text" name="username" id="id_username" required>
-    </div>
-
-    <div class="form-group">
-      <label for="id_password">Senha</label>
-      <input type="password" name="password" id="id_password" required>
-    </div>
-
-    <div class="submit-row">
-      <input type="submit" value="Entrar">
-    </div>
-
-    {% comment %} Opcional: Mostrar apenas se a URL de reset estiver configurada {% endcomment %}
-    {% url 'password_reset' as reset_url %}
-    {% if reset_url %}
-    <div class="login-links">
-      <a href="{{ reset_url }}">Esqueceu sua senha?</a>
-    </div>
-    {% endif %}
-  </form>
-</div>
-{% endblock %}
+</body>
+</html>

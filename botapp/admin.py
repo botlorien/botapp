@@ -114,21 +114,27 @@ export_as_excel.short_description = "📥 Exportar para Excel (.xlsx)"
 
 @admin.register(Bot)
 class BotAdmin(admin.ModelAdmin):
-    list_display = ('name', 'version', 'department', 'is_active', 'created_at', 'updated_at')
+    list_display = (
+        'name', 'version', 'department', 'is_active',
+        'silence_threshold_minutes', 'silence_threshold_hours',
+        'last_execution_at', 'created_at',
+    )
     list_filter = ('is_active', 'department')
     search_fields = ('name', 'description', 'version')
     ordering = ('-updated_at',)
-    readonly_fields = ('created_at', 'updated_at')
+    readonly_fields = ('created_at', 'updated_at', 'last_execution_at', 'last_status')
+    list_editable = ('silence_threshold_minutes', 'silence_threshold_hours')
     actions = [export_as_excel]
 
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ('name', 'bot', 'created_at', 'updated_at')
+    list_display = ('name', 'bot', 'expected_duration_seconds', 'created_at', 'updated_at')
     list_filter = ('bot__department',)
     search_fields = ('name', 'description', 'bot__name')
     ordering = ('-updated_at',)
     readonly_fields = ('created_at', 'updated_at')
+    list_editable = ('expected_duration_seconds',)
     actions = [export_as_excel]
 
 
