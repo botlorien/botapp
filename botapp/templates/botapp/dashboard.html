@@ -205,7 +205,21 @@
   {% endif %}
 </div>
 
+{# Dados de charts serializados via json_script — escape automático bloqueia XSS #}
+{{ status_labels_data|json_script:"data-status-labels" }}
+{{ status_counts_data|json_script:"data-status-counts" }}
+{{ departments_data|json_script:"data-departments" }}
+{{ department_counts_data|json_script:"data-department-counts" }}
+{{ bot_names_data|json_script:"data-bot-names" }}
+{{ bot_durations_data|json_script:"data-bot-durations" }}
+{{ heatmap_data|json_script:"data-heatmap" }}
+
 <script>
+  function readJson(id) {
+    const el = document.getElementById(id);
+    return el ? JSON.parse(el.textContent) : null;
+  }
+
   // Tema escuro padrão para Chart.js
   Chart.defaults.color = '#cbd5e1';
   Chart.defaults.borderColor = 'rgba(51,65,85,0.4)';
@@ -215,9 +229,9 @@
   new Chart(document.getElementById('statusChart'), {
     type: 'doughnut',
     data: {
-      labels: {{ status_labels_json|safe }},
+      labels: readJson('data-status-labels'),
       datasets: [{
-        data: {{ status_counts_json|safe }},
+        data: readJson('data-status-counts'),
         backgroundColor: ['rgba(59,130,246,0.7)','rgba(16,185,129,0.7)','rgba(239,68,68,0.7)','rgba(245,158,11,0.7)'],
         borderColor: ['#3b82f6','#10b981','#ef4444','#f59e0b'],
         borderWidth: 1,
@@ -230,9 +244,9 @@
   new Chart(document.getElementById('departmentChart'), {
     type: 'bar',
     data: {
-      labels: {{ departments_json|safe }},
+      labels: readJson('data-departments'),
       datasets: [{
-        data: {{ department_counts_json|safe }},
+        data: readJson('data-department-counts'),
         backgroundColor: 'rgba(59,130,246,0.6)',
         borderColor: '#3b82f6',
         borderWidth: 1,
@@ -248,9 +262,9 @@
   new Chart(document.getElementById('executionTimeChart'), {
     type: 'bar',
     data: {
-      labels: {{ bot_names_json|safe }},
+      labels: readJson('data-bot-names'),
       datasets: [{
-        data: {{ bot_durations_json|safe }},
+        data: readJson('data-bot-durations'),
         backgroundColor: 'rgba(79,70,229,0.6)',
         borderColor: '#4f46e5',
         borderWidth: 1,
@@ -267,7 +281,7 @@
   (function(){
     const el = document.getElementById('heatmap');
     if (!el) return;
-    const data = {{ heatmap_json|safe }};
+    const data = readJson('data-heatmap') || [];
     const days = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
     let max = 0;
     for (const row of data) for (const v of row) if (v > max) max = v;

@@ -24,7 +24,25 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-_TIMEOUT = float(os.environ.get('BOTAPP_NOTIFIER_TIMEOUT', '5'))
+
+def _env_float(key: str, default: float) -> float:
+    """os.environ.get(key, default) só aplica o default quando a chave está
+    ausente — string vazia passa. Em CI/CD com `.env.prod` escrito via
+    `echo "KEY=${VAR}"`, uma variável não definida no GitLab vira a linha
+    `KEY=` no arquivo, que python-dotenv carrega como string vazia e
+    explode no float(). Trata "" como ausente.
+    """
+    raw = os.environ.get(key, '').strip()
+    if not raw:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("%s=%r não é numérico — usando default %s", key, raw, default)
+        return default
+
+
+_TIMEOUT = _env_float('BOTAPP_NOTIFIER_TIMEOUT', 5.0)
 
 _SEVERITY_COLOR = {
     'low': '#36a64f',       # verde

@@ -13,13 +13,29 @@ logging.getLogger('botapp.settings').debug(
 
 SECRET_KEY = os.getenv("BOTAPP_SECRET_KEY", 'chave-super-secreta-para-dev')
 
-# Em produção, exigir SECRET_KEY explicitamente via env var.
-# Retrocompatível: DEBUG=True continua usando o default sem erro.
-if not DEBUG and SECRET_KEY == 'chave-super-secreta-para-dev':
-    raise RuntimeError(
-        "BOTAPP_SECRET_KEY não pode usar o valor default em produção. "
-        "Defina a variável de ambiente BOTAPP_SECRET_KEY."
-    )
+# Check de SECRET_KEY só faz sentido no dashboard (contexto web com sessions,
+# CSRF, tokens assinados). RPAs em modo standalone fazem django.setup() para
+# usar o ORM e herdam este settings — mas não tocam em nada que dependa do
+# SECRET_KEY, então forçar a env só quebra pipeline à toa e espalha a chave
+# do dashboard por N robôs, aumentando o blast radius sem ganho de segurança.
+#
+# Opt-in: o dashboard define BOTAPP_ENFORCE_SECRET_KEY=true no .env.prod.
+# Consumidores-biblioteca (RPAs) simplesmente não setam, e aceitam o default
+# com um warning no boot quando DEBUG=False.
+_ENFORCE_SECRET_KEY = os.getenv("BOTAPP_ENFORCE_SECRET_KEY", "false").lower() == "true"
+if SECRET_KEY == 'chave-super-secreta-para-dev':
+    if _ENFORCE_SECRET_KEY:
+        raise RuntimeError(
+            "BOTAPP_SECRET_KEY não pode usar o valor default quando "
+            "BOTAPP_ENFORCE_SECRET_KEY=true. Defina a env BOTAPP_SECRET_KEY "
+            "no dashboard."
+        )
+    if not DEBUG:
+        logging.getLogger('botapp.settings').warning(
+            "BOTAPP_SECRET_KEY usando default em DEBUG=False. Inócuo em modo "
+            "SDK/standalone (RPAs não usam sessions/CSRF). No dashboard web, "
+            "defina BOTAPP_SECRET_KEY e BOTAPP_ENFORCE_SECRET_KEY=true."
+        )
 
 ALLOWED_HOSTS = os.getenv("BOTAPP_ALLOWED_HOSTS", '*').split(',')
 PORT_ADMIN = os.getenv("BOTAPP_PORT_ADMIN", 8000)
@@ -27,6 +43,22 @@ DATABASE_SCHEMA = os.getenv("PG_BOTAPP_SCHEMA", 'botapp_schema')
 
 if not DEBUG:
     CSRF_TRUSTED_ORIGINS = os.getenv("BOTAPP_CSRF_TRUSTED_ORIGINS", "*").split(',')
+    # Não `raise` para não quebrar deploys existentes que dependem do default
+    # wildcard — mas alerta visível no boot para o operador configurar.
+    # Host-header poisoning: ALLOWED_HOSTS='*' permite reset-password links
+    # apontando para domínio do atacante. Em CSRF_TRUSTED_ORIGINS, '*' anula
+    # a proteção contra POSTs cross-origin forjados.
+    _security_logger = logging.getLogger('botapp.settings')
+    if '*' in ALLOWED_HOSTS:
+        _security_logger.warning(
+            "SEGURANÇA: BOTAPP_ALLOWED_HOSTS='*' em produção (DEBUG=False). "
+            "Defina explicitamente os hosts permitidos (ex.: 'botapp.exemplo.com,outro.exemplo.com')."
+        )
+    if '*' in CSRF_TRUSTED_ORIGINS:
+        _security_logger.warning(
+            "SEGURANÇA: BOTAPP_CSRF_TRUSTED_ORIGINS='*' em produção. "
+            "Defina origens explícitas (ex.: 'https://botapp.exemplo.com')."
+        )
 
 
 INSTALLED_APPS = [
@@ -39,6 +71,10 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rangefilter',
     'rest_framework',
+    # Token auth em paralelo ao Basic. Migration aditiva: cria tabela
+    # authtoken_token sem afetar schema existente. Permite migração
+    # gradual dos SDKs (Python e Go) sem deprecar Basic imediatamente.
+    'rest_framework.authtoken',
     'botapp',
 ]
 
@@ -113,6 +149,15 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.SessionAuthentication',
+        # Token vem antes de Basic — quando o cliente enviar Authorization
+        # header com formato 'Token <...>', o DRF usa TokenAuthentication;
+        # 'Basic <base64>' cai no BasicAuthentication. Ordem não quebra
+        # clientes existentes — apenas prioriza o método mais seguro.
+        # Classe vive em rest_framework.authentication (não em authtoken/).
+        # O app 'rest_framework.authtoken' em INSTALLED_APPS provê apenas o
+        # model Token + migrations + admin; a classe de autenticação que
+        # valida o header 'Authorization: Token <...>' está aqui:
+        'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.BasicAuthentication',
     ],
 }
@@ -159,8 +204,8 @@ LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 LANGUAGE_CODE = os.getenv('BOTAPP_LANGUAGE_CODE', 'pt-br')     # idioma (legendas, validações de formulários, etc.)
 TIME_ZONE = os.getenv('BOTAPP_TIME_ZONE', 'America/Cuiaba')  # fuso-horário para o Brasil
-USE_I18N = os.getenv('BOTAPP_TIME_ZONE', 'True').lower() == 'true'  # internacionalização (i18n)
-USE_TZ = os.getenv('BOTAPP_TIME_ZONE', 'False').lower() == 'true'  # timezone (tz)
+USE_I18N = os.getenv('BOTAPP_USE_I18N', 'True').lower() == 'true'  # internacionalização (i18n)
+USE_TZ = os.getenv('BOTAPP_USE_TZ', 'True').lower() == 'true'  # timezone (tz) — default True para notifiers usarem datetimes aware
 
 if not DEBUG:
     CACHES = os.getenv('BOTAPP_CACHES')
