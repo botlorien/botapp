@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="botapp",
-    version="0.3.0",
+    version="0.4.2",
     packages=find_packages(),
     include_package_data=True,  # Inclui arquivos de dados especificados no MANIFEST.in
     license="MIT",
@@ -18,12 +18,15 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
-        "Django>=3.2",
+        # Faixa ampla: hosts antigos (3.2) continuam funcionando; hosts novos
+        # podem rodar 4.2/5.x sem precisar mudar o pacote. Recomendado: >=4.2
+        # para fechar CVEs que só tem patch nas séries em suporte.
+        "Django>=3.2,<5.3",
         "psycopg2-binary>=2.9.10",
         "django-admin-rangefilter",
         "openpyxl",
         "python-dotenv>=1.0.0",
-        "xhtml2pdf>=0.2.5",
+        "xhtml2pdf>=0.2.17",  # CVE-2024-25885: ReDoS em getcolor (<0.2.17)
         "whitenoise",
         "djangorestframework",
         "requests",

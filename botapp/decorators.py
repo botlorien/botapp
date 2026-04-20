@@ -7,7 +7,7 @@ import platform
 import requests
 import traceback
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timezone as _tz
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 
@@ -17,7 +17,34 @@ logger = logging.getLogger(__name__)
 
 BOTAPP_API_USUARIO = os.environ.get('BOTAPP_API_USUARIO')
 BOTAPP_API_SENHA = os.environ.get('BOTAPP_API_SENHA')
+BOTAPP_API_TOKEN = os.environ.get('BOTAPP_API_TOKEN')
 BOTAPP_API_TIMEOUT = float(os.environ.get('BOTAPP_API_TIMEOUT', '10'))
+
+_BASIC_AUTH_WARNED = False
+
+
+def _auth_kwargs():
+    """Kwargs de auth para requests.*: Token se setado, senão Basic (retrocompat).
+
+    Definido aqui (e reexportado por core_restful) para evitar import
+    circular entre core_restful.py e decorators.py — ambos precisam do
+    mesmo resolvedor de credencial.
+    """
+    global _BASIC_AUTH_WARNED
+
+    if BOTAPP_API_TOKEN:
+        return {'headers': {'Authorization': f'Token {BOTAPP_API_TOKEN}'}}
+
+    if not _BASIC_AUTH_WARNED:
+        logger.warning(
+            "botapp SDK usando Basic Auth — método depreciado. "
+            "Migre para token: defina BOTAPP_API_TOKEN (gere com "
+            "`python manage.py create_bot_token <usuario>` no dashboard). "
+            "Basic Auth será removido em uma versão futura."
+        )
+        _BASIC_AUTH_WARNED = True
+
+    return {'auth': HTTPBasicAuth(BOTAPP_API_USUARIO, BOTAPP_API_SENHA)}
 
 
 def task(app, func=None):
@@ -145,7 +172,11 @@ def task_restful(app, func=None):
         manual_trigger = True
 
         task_obj = app._get_or_create_task(func)
-        start_time = datetime.now()
+        # UTC-aware: sem offset, DRF com USE_TZ=True interpreta naive como
+        # settings.TIME_ZONE (America/Cuiaba), então um container UTC mandava
+        # "15:05" e o servidor salvava como 15:05 Cuiaba (19:05 UTC), aparecendo
+        # 4h no futuro no dashboard. Com aware UTC o offset viaja no isoformat.
+        start_time = datetime.now(_tz.utc)
 
         # Cria o log via API
         log_payload = {
@@ -168,8 +199,8 @@ def task_restful(app, func=None):
             log_response = requests.post(
                 f"{app.api_url}/tasklog/",
                 json=log_payload,
-                auth=HTTPBasicAuth(BOTAPP_API_USUARIO, BOTAPP_API_SENHA),
                 timeout=BOTAPP_API_TIMEOUT,
+                **_auth_kwargs(),
             )
             log = log_response.json()
             log_id = log.get('id')
@@ -204,7 +235,7 @@ def task_restful(app, func=None):
             raise
         finally:
             if log_id is not None:
-                end_time = datetime.now()
+                end_time = datetime.now(_tz.utc)
                 patch_payload = {
                     "status": status,
                     "end_time": end_time.isoformat(),
@@ -217,8 +248,8 @@ def task_restful(app, func=None):
                     requests.patch(
                         f"{app.api_url}/tasklog/{log_id}/",
                         json=patch_payload,
-                        auth=HTTPBasicAuth(BOTAPP_API_USUARIO, BOTAPP_API_SENHA),
                         timeout=BOTAPP_API_TIMEOUT,
+                        **_auth_kwargs(),
                     )
                 except Exception:
                     logger.exception("task_restful: falha ao atualizar TaskLog log_id=%s", log_id)

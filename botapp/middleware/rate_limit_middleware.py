@@ -8,10 +8,17 @@ logger = logging.getLogger(__name__)
 
 
 def get_client_ip(request):
-    """Extrai IP do cliente real considerando proxy reverso"""
+    """Extrai IP do cliente real considerando proxy reverso.
+
+    Pega o ÚLTIMO IP de X-Forwarded-For (o inserido pelo proxy confiável,
+    ex.: Traefik) em vez do primeiro. O primeiro é controlado pelo cliente
+    e pode ser forjado trivialmente para contornar rate-limit. Requer que
+    o proxy esteja configurado para reescrever/filtrar o header (em Traefik:
+    `forwardedHeaders.trustedIPs`).
+    """
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
     if x_forwarded_for:
-        ip = x_forwarded_for.split(',')[0]
+        ip = x_forwarded_for.split(',')[-1].strip()
     else:
         ip = request.META.get('REMOTE_ADDR')
     return ip

@@ -634,16 +634,19 @@ def dashboard(request):
         data = _dashboard_aggregates(start_dt, end_dt)
         cache.set(cache_key, data, timeout=ttl)
 
+    # Os campos de dados para charts são passados como objetos Python (listas)
+    # e serializados no template via {% ... |json_script %} — escapa < > & '
+    # automaticamente, bloqueando XSS via bot.name/task.name maliciosos.
     context = {
         'total_bots': data['total_bots'],
         'active_bots': data['active_bots'],
         'inactive_bots': data['inactive_bots'],
-        'departments_json': json.dumps(data['departments']),
-        'department_counts_json': json.dumps(data['department_counts']),
-        'status_labels_json': json.dumps(data['status_labels']),
-        'status_counts_json': json.dumps(data['status_counts']),
-        'bot_names_json': json.dumps(data['bot_names']),
-        'bot_durations_json': json.dumps(data['bot_durations']),
+        'departments_data': data['departments'],
+        'department_counts_data': data['department_counts'],
+        'status_labels_data': data['status_labels'],
+        'status_counts_data': data['status_counts'],
+        'bot_names_data': data['bot_names'],
+        'bot_durations_data': data['bot_durations'],
         'start_date': start_raw,
         'end_date': end_raw,
         'period': period,
@@ -661,7 +664,7 @@ def dashboard(request):
         'silent_threshold_hours': data['silent_threshold_hours'],
         'active_alerts': data['active_alerts'],
         'critical_alerts': data['critical_alerts'],
-        'heatmap_json': json.dumps(data['heatmap']),
+        'heatmap_data': data['heatmap'],
     }
     return render(request, 'botapp/dashboard.html', context)
 
