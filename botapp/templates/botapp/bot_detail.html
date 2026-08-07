@@ -230,7 +230,7 @@
     body.innerHTML = '<div class="text-center py-8 text-slate-400"><i class="bi bi-arrow-clockwise animate-spin text-2xl"></i><p class="mt-2">Carregando...</p></div>';
     m.classList.remove('hidden'); m.classList.add('flex');
 
-    fetch(`/log/${logId}/`, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    fetch(bpUrl(`/log/${logId}/`), {headers: {'X-Requested-With': 'XMLHttpRequest'}})
       .then(r => r.json())
       .then(d => { body.innerHTML = formatLogData(d); })
       .catch(() => { body.innerHTML = '<div class="text-red-400 text-center py-8">Erro ao carregar detalhes.</div>'; });
@@ -244,7 +244,7 @@
       const botId = this.dataset.botId;
       const isActive = this.classList.contains('btn-ghost');
       if (!confirm(`Tem certeza que deseja ${isActive ? 'desativar' : 'ativar'} este bot?`)) return;
-      fetch(`/bot/${botId}/toggle-status/`, {
+      fetch(bpUrl(`/bot/${botId}/toggle-status/`), {
         method: 'POST',
         headers: {'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json'},
         body: JSON.stringify({}),
@@ -293,7 +293,7 @@
     result.classList.remove('hidden');
 
     try {
-      const resp = await fetch('{% url "bulk_set_silence_threshold" %}', {
+      const resp = await fetch(bpUrl('{% url "bulk_set_silence_threshold" %}'), {
         method: 'POST',
         headers: {
           'X-CSRFToken': '{{ csrf_token }}',

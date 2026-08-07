@@ -5,6 +5,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}RPA | Monitoramento{% endblock %}</title>
+
+    {# Prefixo quando o dashboard é servido sob um reverse-proxy same-origin #}
+    {# (embed em outro portal). Vazio no acesso direto. SCRIPT_NAME vem do #}
+    {# X-Forwarded-Prefix; um proxy que não repassa o header pode injetar o #}
+    {# valor real aqui. Toda chamada fetch()/JS deve passar por bpUrl(). #}
+    <script>
+      window.BOTAPP_PREFIX = "{{ request.META.SCRIPT_NAME|default:'' }}";
+      window.bpUrl = function (p) { return (window.BOTAPP_PREFIX || "") + p; };
+    </script>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233b82f6'/%3E%3Cpath d='M7 10h10v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6zm2-4h6a2 2 0 0 1 2 2v1H7V8a2 2 0 0 1 2-2zm1 7h1v2h-1zm3 0h1v2h-1z' fill='%23fff'/%3E%3C/svg%3E">
 
     {% block extrastyle %}
@@ -22,6 +31,12 @@
         document.body.addEventListener('htmx:configRequest', function(evt) {
           const m = document.cookie.match(/csrftoken=([^;]+)/);
           if (m) evt.detail.headers['X-CSRFToken'] = m[1];
+          // Prefixa requisições HTMX absolutas com o BOTAPP_PREFIX (subpath proxy).
+          var pfx = window.BOTAPP_PREFIX || '';
+          if (pfx && evt.detail.path && evt.detail.path.charAt(0) === '/' &&
+              evt.detail.path.indexOf(pfx + '/') !== 0) {
+            evt.detail.path = pfx + evt.detail.path;
+          }
         });
       });
     </script>
@@ -245,7 +260,7 @@
       if (!badge) return;
       async function refresh() {
         try {
-          const r = await fetch('{% url "alerts_unread_count" %}', {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+          const r = await fetch(bpUrl('{% url "alerts_unread_count" %}'), {headers: {'X-Requested-With': 'XMLHttpRequest'}});
           if (!r.ok) return;
           const d = await r.json();
           if (d.count > 0) {

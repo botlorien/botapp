@@ -285,7 +285,7 @@
     }
 
     try {
-      const resp = await fetch('{% url "bulk_set_silence_threshold" %}', {
+      const resp = await fetch(bpUrl('{% url "bulk_set_silence_threshold" %}'), {
         method: 'POST',
         headers: {
           'X-CSRFToken': getCsrfCookie(),

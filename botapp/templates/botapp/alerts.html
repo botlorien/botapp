@@ -209,7 +209,7 @@
     return m ? m[1] : '';
   }
   async function postAlert(url) {
-    const resp = await fetch(url, {
+    const resp = await fetch(bpUrl(url), {
       method: 'POST',
       headers: {'X-CSRFToken': getCsrf(), 'X-Requested-With': 'XMLHttpRequest'},
     });
@@ -253,7 +253,7 @@
     const sleepMs   = sleepInput ? parseInt(sleepInput.value, 10) : undefined;
 
     try {
-      const resp = await fetch('/maintenance/cleanup-orphans/', {
+      const resp = await fetch(bpUrl('/maintenance/cleanup-orphans/'), {
         method: 'POST',
         headers: {
           'X-CSRFToken': getCsrf(),
