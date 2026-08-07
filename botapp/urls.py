@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from . import views
+from . import sso_views
 from django.contrib.auth.views import LoginView
 from django.contrib.auth import views as auth_views
 from django.conf.urls.static import static
@@ -18,6 +19,8 @@ router.register(r'tasklog', TaskLogViewSet)
 
 urlpatterns = [
     path('', RedirectView.as_view(url='/bots/', permanent=False), name='root_redirect'),
+    # SSO de entrada por OTT (opt-in via BOTAPP_SSO_SECRET; ver sso_views).
+    path('sso/', sso_views.sso_login, name='botapp_sso'),
     path('sw.js', views.sw_js, name='sw_js'),
     path('favicon.ico', views.favicon_ico, name='favicon_ico'),
     path('api/', include(router.urls)),

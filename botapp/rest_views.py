@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Bot, Task, TaskLog
 from .serializers import BotSerializer, TaskSerializer, TaskLogSerializer
+from . import scoping
 
 
 class SDKReadWritePermission(permissions.BasePermission):
@@ -31,6 +32,13 @@ class BotViewSet(viewsets.ModelViewSet):
     serializer_class = BotSerializer
     permission_classes = [SDKReadWritePermission]
 
+    def get_queryset(self):
+        # Escopo por departamento só para sessão de navegador; SDK (Token/Basic)
+        # vê tudo (precisa registrar bots de qualquer depto).
+        qs = super().get_queryset()
+        deps = scoping.escopo_api(self.request)
+        return qs.filter(department__in=deps) if deps is not None else qs
+
     @action(detail=True, methods=["get"])
     def tasks(self, request, pk=None):
         bot = self.get_object()
@@ -44,8 +52,18 @@ class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [SDKReadWritePermission]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        deps = scoping.escopo_api(self.request)
+        return qs.filter(bot__department__in=deps) if deps is not None else qs
+
 
 class TaskLogViewSet(viewsets.ModelViewSet):
     queryset = TaskLog.objects.all()
     serializer_class = TaskLogSerializer
     permission_classes = [SDKReadWritePermission]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        deps = scoping.escopo_api(self.request)
+        return qs.filter(task__bot__department__in=deps) if deps is not None else qs

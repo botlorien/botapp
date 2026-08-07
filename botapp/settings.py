@@ -116,7 +116,9 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # Enquadramento configurável: por padrão = X-Frame-Options (como o Django);
+    # com BOTAPP_FRAME_ANCESTORS setado → CSP frame-ancestors (embed allowlistado).
+    'botapp.middleware.frame_ancestors.FrameAncestorsMiddleware',
 ]
 
 TEMPLATES = [

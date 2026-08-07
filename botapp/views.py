@@ -1,9 +1,10 @@
 import csv
 import logging
 import os
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, Http404
 from django.shortcuts import render, get_object_or_404
 from .models import Bot, Task, TaskLog, Alert
+from . import scoping
 from datetime import datetime
 from django.http import JsonResponse
 from django.template.loader import render_to_string
@@ -86,6 +87,11 @@ def filter_bots(request):
 
     bots = Bot.objects.all()
 
+    # Escopo por departamento (opt-in): não-admin só vê bots do seu depto.
+    deps = scoping.deps_visiveis(request)
+    if deps is not None:
+        bots = bots.filter(department__in=deps)
+
     if filters:
         bots = bots.exclude(filters) if filter_mode == "not_in" else bots.filter(filters)
 
@@ -113,11 +119,12 @@ def bot_list(request):
     page_obj = paginator.get_page(request.GET.get('page'))
 
     today = datetime.now().date()
+    _deps = scoping.deps_visiveis(request)
     return render(request, "botapp/bot_list.html", {
         "bots": page_obj,
         "page_obj": page_obj,
         "total_bots": paginator.count,
-        "departments": _distinct_departments(),
+        "departments": _distinct_departments() if _deps is None else _deps,
         "today_iso": today.isoformat(),
         "seven_days_ago_iso": (today - timedelta(days=7)).isoformat(),
         "thirty_days_ago_iso": (today - timedelta(days=30)).isoformat(),
@@ -127,6 +134,8 @@ def bot_list(request):
 @login_required
 def bot_detail(request, bot_id):
     bot = get_object_or_404(Bot, id=bot_id)
+    if not scoping.bot_no_escopo(request, bot):
+        raise Http404()  # bot fora do departamento do usuário — não vaza nem por URL
     logs = TaskLog.objects.filter(task__bot=bot).select_related('task', 'task__bot')
 
     start = _parse_date(request.GET.get('start_time'))
@@ -152,8 +161,10 @@ def bot_detail(request, bot_id):
 
 @login_required
 def log_detail(request, log_id):
-    log = get_object_or_404(TaskLog, id=log_id)
-    
+    log = get_object_or_404(TaskLog.objects.select_related('task', 'task__bot'), id=log_id)
+    if log.task_id and log.task.bot_id and not scoping.bot_no_escopo(request, log.task.bot):
+        raise Http404()  # log de bot fora do escopo do departamento
+
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         # Se for uma requisição AJAX, retorna JSON
         data = {
@@ -429,9 +440,16 @@ def silence_thresholds_page(request):
 
 
 @require_POST
-@user_passes_test(lambda u: u.is_active and u.is_superuser, login_url='admin:login')
+@login_required
 def toggle_bot_status(request, bot_id):
+    # Editar (ativar/desativar) exige permissão de edição: superusuário OU flag
+    # can_edit da sessão (concedida pelo SSO a quem tem o direito no IdP externo).
+    if not scoping.pode_editar(request):
+        return JsonResponse({'status': 'forbidden',
+                             'message': 'Você não tem permissão para editar bots.'}, status=403)
     bot = get_object_or_404(Bot, id=bot_id)
+    if not scoping.bot_no_escopo(request, bot):
+        raise Http404()  # não pode agir sobre bot fora do seu departamento
     bot.is_active = not bot.is_active
     bot.save()
     return JsonResponse({
@@ -505,26 +523,38 @@ def _heatmap_matrix(logs_qs):
     return matrix
 
 
-def _silent_bots_count(threshold_hours):
-    """Bots ativos silenciosos há mais de `threshold_hours`."""
+def _silent_bots_count(threshold_hours, deps=None):
+    """Bots ativos silenciosos há mais de `threshold_hours` (dentro do escopo)."""
     cutoff = timezone.now() - timedelta(hours=threshold_hours)
-    return Bot.objects.filter(is_active=True).filter(
+    qs = Bot.objects.filter(is_active=True)
+    if deps is not None:
+        qs = qs.filter(department__in=deps)
+    return qs.filter(
         Q(last_execution_at__lt=cutoff) |
         Q(last_execution_at__isnull=True, created_at__lt=cutoff)
     ).count()
 
 
-def _dashboard_aggregates(start_dt, end_dt):
-    """Computa todos os agregados do dashboard. Resultado cacheável (pickle-safe)."""
-    total_bots = Bot.objects.count()
-    active_bots = Bot.objects.filter(is_active=True).count()
+def _dashboard_aggregates(start_dt, end_dt, deps=None):
+    """Computa todos os agregados do dashboard. Resultado cacheável (pickle-safe).
+
+    `deps` (None = sem escopo) restringe bots/execuções/alertas a uma lista de
+    departamentos — usado pelo escopo por departamento (scoping.py)."""
+    bots_base = Bot.objects.all()
+    if deps is not None:
+        bots_base = bots_base.filter(department__in=deps)
+
+    total_bots = bots_base.count()
+    active_bots = bots_base.filter(is_active=True).count()
     inactive_bots = total_bots - active_bots
 
     bots_by_department = list(
-        Bot.objects.values('department').annotate(count=Count('id')).order_by('-count')
+        bots_base.values('department').annotate(count=Count('id')).order_by('-count')
     )
 
     logs_qs = TaskLog.objects.all()
+    if deps is not None:
+        logs_qs = logs_qs.filter(task__bot__department__in=deps)
     if start_dt:
         logs_qs = logs_qs.filter(start_time__date__gte=start_dt.date())
     if end_dt:
@@ -575,12 +605,13 @@ def _dashboard_aggregates(start_dt, end_dt):
     ]
 
     silent_threshold = int(os.environ.get('BOTAPP_SILENT_BOT_THRESHOLD_HOURS', '24'))
-    silent_bots = _silent_bots_count(silent_threshold)
+    silent_bots = _silent_bots_count(silent_threshold, deps)
 
-    active_alerts = Alert.objects.filter(resolved_at__isnull=True).count()
-    critical_alerts = Alert.objects.filter(
-        resolved_at__isnull=True, severity=Alert.Severity.CRITICAL,
-    ).count()
+    alerts_base = Alert.objects.filter(resolved_at__isnull=True)
+    if deps is not None:
+        alerts_base = alerts_base.filter(bot__department__in=deps)
+    active_alerts = alerts_base.count()
+    critical_alerts = alerts_base.filter(severity=Alert.Severity.CRITICAL).count()
 
     heatmap = _heatmap_matrix(logs_qs)
 
@@ -625,13 +656,16 @@ def dashboard(request):
 
     start_dt, end_dt = _resolve_period(period, start_raw, end_raw)
 
-    cache_key = f"botapp:dashboard:{start_dt.isoformat() if start_dt else 'none'}:{end_dt.isoformat() if end_dt else 'none'}"
+    deps = scoping.deps_visiveis(request)
+    # A chave inclui o escopo → um usuário de um depto NUNCA recebe o cache de outro.
+    escopo = scoping.chave_cache_escopo(request)
+    cache_key = f"botapp:dashboard:{escopo}:{start_dt.isoformat() if start_dt else 'none'}:{end_dt.isoformat() if end_dt else 'none'}"
     # 'Tudo' muda pouco a cada minuto (escala em anos/meses) — cache mais longo.
     ttl = 300 if (start_dt is None and end_dt is None) else 60
 
     data = cache.get(cache_key)
     if data is None:
-        data = _dashboard_aggregates(start_dt, end_dt)
+        data = _dashboard_aggregates(start_dt, end_dt, deps)
         cache.set(cache_key, data, timeout=ttl)
 
     # Os campos de dados para charts são passados como objetos Python (listas)
@@ -650,7 +684,7 @@ def dashboard(request):
         'start_date': start_raw,
         'end_date': end_raw,
         'period': period,
-        'department_options': _distinct_departments(),
+        'department_options': _distinct_departments() if deps is None else deps,
         # KPIs v2
         'total_runs': data['total_runs'],
         'completed_runs': data['completed_runs'],
@@ -683,6 +717,11 @@ def alert_list(request):
     bot_id = request.GET.get('bot')
 
     qs = Alert.objects.select_related('bot', 'acked_by', 'resolved_by')
+
+    # Escopo: não-admin só vê alertas de bots do seu depto (globais = admin-only).
+    deps = scoping.deps_visiveis(request)
+    if deps is not None:
+        qs = qs.filter(bot__department__in=deps)
 
     if status == 'active':
         qs = qs.filter(resolved_at__isnull=True)
@@ -752,10 +791,14 @@ def alert_resolve(request, alert_id):
 def alerts_unread_count(request):
     """JSON: contagem de alertas ativos (não resolvidos). Usado pelo badge do sino.
     Cacheado por 10s para aguentar polling de múltiplas abas."""
-    key = 'botapp:alerts:active_count'
+    key = f'botapp:alerts:active_count:{scoping.chave_cache_escopo(request)}'
     count = cache.get(key)
     if count is None:
-        count = Alert.objects.filter(resolved_at__isnull=True).count()
+        qs = Alert.objects.filter(resolved_at__isnull=True)
+        deps = scoping.deps_visiveis(request)
+        if deps is not None:
+            qs = qs.filter(bot__department__in=deps)
+        count = qs.count()
         cache.set(key, count, timeout=10)
     return JsonResponse({'count': count})
 
@@ -784,6 +827,11 @@ EXPLORE_COLUMNS = [
 def _explore_filter(request):
     """Aplica filtros comuns tanto ao HTML quanto ao CSV. Retorna queryset."""
     qs = TaskLog.objects.select_related('task', 'task__bot')
+
+    # Escopo por departamento (opt-in): não-admin só vê execuções do seu depto.
+    deps = scoping.deps_visiveis(request)
+    if deps is not None:
+        qs = qs.filter(task__bot__department__in=deps)
 
     bot_id = request.GET.get('bot')
     task_name = request.GET.get('task')
@@ -835,7 +883,11 @@ def explore(request):
         TaskLog.objects.exclude(env__isnull=True).exclude(env__exact='')
         .values_list('env', flat=True).distinct().order_by('env')
     )
-    bots = list(Bot.objects.values('id', 'name').order_by('name'))
+    _bots_qs = Bot.objects.all()
+    _deps = scoping.deps_visiveis(request)
+    if _deps is not None:
+        _bots_qs = _bots_qs.filter(department__in=_deps)
+    bots = list(_bots_qs.values('id', 'name').order_by('name'))
 
     # Preserva a querystring para links de paginação/CSV sem o parâmetro page.
     qs_preserve = request.GET.copy()
