@@ -30,7 +30,7 @@ from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
-from .scoping import SESSION_CAN_EDIT_KEY, SESSION_DEPARTMENT_KEY
+from .scoping import SESSION_CAN_EDIT_KEY, SESSION_DEPARTMENT_KEY, SESSION_THEME_KEY
 
 User = get_user_model()
 
@@ -125,8 +125,12 @@ def sso_login(request):
         user.save(update_fields=["is_staff", "is_superuser"])
 
     login(request, user, backend=BACKEND)
-    # Contexto por sessão (não-durável): departamento p/ o escopo e permissão de
-    # edição. Setado DEPOIS do login() (que rotaciona a sessão).
+    # Contexto por sessão (não-durável): departamento p/ o escopo, permissão de
+    # edição e tema visual propagado pelo IdP. Setado DEPOIS do login() (que
+    # rotaciona a sessão).
     request.session[SESSION_DEPARTMENT_KEY] = (p.get("dep") or "").strip()
     request.session[SESSION_CAN_EDIT_KEY] = bool(p.get("can_edit"))
+    tema = (p.get("tema") or "").strip().lower()
+    if tema in ("light", "dark"):
+        request.session[SESSION_THEME_KEY] = tema
     return redirect("/")

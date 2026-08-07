@@ -19,6 +19,7 @@ from .models import Bot
 
 SESSION_DEPARTMENT_KEY = "botapp_department"
 SESSION_CAN_EDIT_KEY = "botapp_can_edit"
+SESSION_THEME_KEY = "botapp_theme"
 
 
 def canon(nome):

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 {% load static %}
-<html lang="pt-br" class="dark">
+<html lang="pt-br" class="dark" data-theme="{{ request.session.botapp_theme|default:'dark' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -187,6 +187,63 @@
       ::-webkit-scrollbar-track { background: #0f172a; }
       ::-webkit-scrollbar-thumb { background: #334155; border-radius: 5px; }
       ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+      /* ═══════════════ TEMA CLARO (opt-in via <html data-theme="light">) ═══════════════ */
+      /* Override-only: não altera o dark (default). Cobre as classes .fx-* / .glass e as */
+      /* utilities Tailwind (slate/acentos) efetivamente usadas nos templates. */
+      :root[data-theme="light"] body { background: #eef2f8; color: #1e293b; }
+      :root[data-theme="light"] body::before {
+        background-image:
+          linear-gradient(rgba(37,99,235,.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(37,99,235,.06) 1px, transparent 1px);
+      }
+      :root[data-theme="light"] body::after { background: radial-gradient(circle, rgba(59,130,246,.10) 0%, transparent 70%); }
+      :root[data-theme="light"] .glass-card { background: rgba(255,255,255,.78); border-color: rgba(203,213,225,.9); }
+      :root[data-theme="light"] .glass-card:hover { border-color: rgba(59,130,246,.4); }
+      :root[data-theme="light"] .fx-input, :root[data-theme="light"] .fx-select { background: #fff; border-color: #cbd5e1; color: #1e293b; }
+      :root[data-theme="light"] .fx-label { color: #64748b; }
+      :root[data-theme="light"] .fx-checkbox { background: #fff; border-color: #94a3b8; }
+      :root[data-theme="light"] .btn-ghost { color: #475569; border-color: #cbd5e1; }
+      :root[data-theme="light"] .btn-ghost:hover { color: #2563eb; }
+      :root[data-theme="light"] .chip-success { color: #059669; }
+      :root[data-theme="light"] .chip-danger  { color: #dc2626; }
+      :root[data-theme="light"] .chip-warning { color: #b45309; }
+      :root[data-theme="light"] .chip-info    { color: #2563eb; }
+      :root[data-theme="light"] .chip-muted   { color: #64748b; }
+      :root[data-theme="light"] .fx-table th { background: #eef2f7; color: #64748b; border-bottom-color: #e2e8f0; }
+      :root[data-theme="light"] .fx-table td { color: #1e293b; border-bottom-color: #eef2f7; }
+      :root[data-theme="light"] .fx-table tbody tr:hover { background: rgba(37,99,235,.05); }
+      :root[data-theme="light"] .fx-pagination a, :root[data-theme="light"] .fx-pagination span { border-color: #cbd5e1; color: #475569; }
+      :root[data-theme="light"] .fx-header { background: rgba(255,255,255,.82); border-bottom-color: rgba(203,213,225,.7); }
+      :root[data-theme="light"] .fx-nav-link { color: #475569; }
+      :root[data-theme="light"] ::-webkit-scrollbar-track { background: #e2e8f0; }
+      :root[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+      :root[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      /* Utilities Tailwind (usadas nos templates) — !important p/ vencer o CDN */
+      :root[data-theme="light"] .text-slate-100 { color: #1e293b !important; }
+      :root[data-theme="light"] .text-slate-200 { color: #334155 !important; }
+      :root[data-theme="light"] .text-slate-300 { color: #334155 !important; }
+      :root[data-theme="light"] .text-slate-400 { color: #64748b !important; }
+      :root[data-theme="light"] .text-slate-500 { color: #64748b !important; }
+      :root[data-theme="light"] .text-slate-600 { color: #94a3b8 !important; }
+      :root[data-theme="light"] .bg-slate-950 { background-color: #e2e8f0 !important; }
+      :root[data-theme="light"] .bg-slate-900 { background-color: #f1f5f9 !important; }
+      :root[data-theme="light"] .bg-slate-900\/60 { background-color: rgba(241,245,249,.6) !important; }
+      :root[data-theme="light"] .bg-slate-800 { background-color: #e8edf3 !important; }
+      :root[data-theme="light"] .bg-slate-800\/50 { background-color: rgba(232,237,243,.5) !important; }
+      :root[data-theme="light"] .bg-slate-700 { background-color: #dbe2ea !important; }
+      :root[data-theme="light"] .bg-slate-600 { background-color: #cbd5e1 !important; }
+      :root[data-theme="light"] .border-slate-700 { border-color: #e2e8f0 !important; }
+      :root[data-theme="light"] .border-slate-800 { border-color: #eef2f7 !important; }
+      :root[data-theme="light"] .placeholder-slate-600::placeholder { color: #94a3b8 !important; }
+      :root[data-theme="light"] .text-blue-400 { color: #2563eb !important; }
+      :root[data-theme="light"] .text-blue-300 { color: #3b82f6 !important; }
+      :root[data-theme="light"] .text-red-400 { color: #dc2626 !important; }
+      :root[data-theme="light"] .text-red-300 { color: #ef4444 !important; }
+      :root[data-theme="light"] .text-amber-400 { color: #b45309 !important; }
+      :root[data-theme="light"] .text-amber-300 { color: #d97706 !important; }
+      :root[data-theme="light"] .text-emerald-400 { color: #059669 !important; }
+      :root[data-theme="light"] .text-emerald-300 { color: #10b981 !important; }
     </style>
     {% endblock %}
 
