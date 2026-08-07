@@ -102,6 +102,16 @@ def chave_cache_escopo(request):
     return "d:" + "|".join(sorted(canon(d) for d in deps))
 
 
+def autenticado_por_sessao(request):
+    """True se o request foi autenticado por SESSÃO (navegador), não por SDK
+    (Token/Basic headless). Usado p/ separar humanos de clientes de máquina."""
+    try:
+        from rest_framework.authentication import SessionAuthentication
+    except Exception:
+        return False
+    return isinstance(getattr(request, "successful_authenticator", None), SessionAuthentication)
+
+
 def escopo_api(request):
     """Escopo para as ViewSets DRF. Só se aplica a requests autenticados por
     SESSÃO (navegador) — clientes SDK (Token/Basic) precisam ver tudo p/ registrar
@@ -111,10 +121,6 @@ def escopo_api(request):
     u = getattr(request, "user", None)
     if u is None or not u.is_authenticated or getattr(u, "is_superuser", False):
         return None
-    try:
-        from rest_framework.authentication import SessionAuthentication
-    except Exception:
-        return None
-    if not isinstance(getattr(request, "successful_authenticator", None), SessionAuthentication):
+    if not autenticado_por_sessao(request):
         return None  # SDK (Token/Basic) → sem escopo
     return departamentos_correspondentes(departamento_do_usuario(request))

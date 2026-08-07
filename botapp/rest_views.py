@@ -11,20 +11,31 @@ from . import scoping
 class SDKReadWritePermission(permissions.BasePermission):
     """Permissão desenhada para o padrão de uso dos SDKs (Python e Go).
 
-    Os RPAs em produção fazem apenas GET/POST/PATCH nos endpoints — nunca
-    DELETE nem PUT. Bloquear os dois primeiros fecha o vetor de apagar ou
-    sobrescrever histórico sem afetar nenhum cliente existente. Operações
-    destrutivas ficam restritas a usuários staff (admins do dashboard).
+    Os RPAs em produção fazem apenas GET/POST/PATCH nos endpoints (nunca PUT/
+    DELETE) e autenticam por Token/Basic (headless, NÃO por sessão).
+
+    - Leitura (GET/HEAD/OPTIONS): qualquer autenticado — o get_queryset já filtra
+      por departamento no caso de sessão de navegador.
+    - Escrita SDK (POST/PATCH): só clientes SDK (Token/Basic) OU staff. Sessões de
+      navegador NÃO escrevem pela API — evita que um usuário escopado crie/edite
+      bots pela API browsable, contornando o gate da UI. Automações (Basic/Token)
+      seguem inalteradas.
+    - PUT/DELETE (destrutivo): só staff.
     """
 
-    SAFE_SDK_METHODS = {'GET', 'HEAD', 'OPTIONS', 'POST', 'PATCH'}
+    LEITURA = {'GET', 'HEAD', 'OPTIONS'}
+    ESCRITA_SDK = {'POST', 'PATCH'}
 
     def has_permission(self, request, view):
-        if not (request.user and request.user.is_authenticated):
+        u = request.user
+        if not (u and u.is_authenticated):
             return False
-        if request.method in self.SAFE_SDK_METHODS:
+        if request.method in self.LEITURA:
             return True
-        return bool(request.user.is_staff)
+        if request.method in self.ESCRITA_SDK:
+            # SDK headless (não-sessão) OU staff; sessão de navegador comum → nega.
+            return (not scoping.autenticado_por_sessao(request)) or bool(u.is_staff)
+        return bool(u.is_staff)  # PUT/DELETE
 
 
 class BotViewSet(viewsets.ModelViewSet):
