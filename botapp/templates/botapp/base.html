@@ -13,6 +13,36 @@
     <script>
       window.BOTAPP_PREFIX = "{{ request.META.SCRIPT_NAME|default:'' }}";
       window.bpUrl = function (p) { return (window.BOTAPP_PREFIX || "") + p; };
+      // Servido sob um reverse-proxy same-origin (ex.: /botapp-app) o BOTAPP_PREFIX
+      // é injetado no HTML. Prefixa AUTOMATICAMENTE toda chamada fetch/XHR de
+      // caminho absoluto-de-raiz (ex.: polling de auto-refresh) para não cair na
+      // raiz do host pai. Acesso direto (prefixo vazio) = no-op.
+      (function () {
+        var pfx = window.BOTAPP_PREFIX || "";
+        if (!pfx) return;
+        function ajusta(u) {
+          if (typeof u === "string" && u.charAt(0) === "/" && u.charAt(1) !== "/" &&
+              u.indexOf(pfx + "/") !== 0 && u !== pfx) {
+            return pfx + u;
+          }
+          return u;
+        }
+        var _fetch = window.fetch;
+        if (_fetch) {
+          window.fetch = function (input, init) {
+            try {
+              if (typeof input === "string") input = ajusta(input);
+              else if (input && typeof input.url === "string") input = new Request(ajusta(input.url), input);
+            } catch (e) {}
+            return _fetch.call(this, input, init);
+          };
+        }
+        var _open = XMLHttpRequest.prototype.open;
+        XMLHttpRequest.prototype.open = function (m, u) {
+          try { arguments[1] = ajusta(u); } catch (e) {}
+          return _open.apply(this, arguments);
+        };
+      })();
     </script>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%233b82f6'/%3E%3Cpath d='M7 10h10v6a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-6zm2-4h6a2 2 0 0 1 2 2v1H7V8a2 2 0 0 1 2-2zm1 7h1v2h-1zm3 0h1v2h-1z' fill='%23fff'/%3E%3C/svg%3E">
 
