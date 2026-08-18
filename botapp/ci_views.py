@@ -120,8 +120,10 @@ def project_detail(request, project_id):
     sugeridos, outros = [], []
     if scoping.pode_editar(request):
         from .views import sugerir_bots_ci
-        sugeridos, outros = sugerir_bots_ci(projeto.path,
-                                            Bot.objects.order_by('name'))
+        # o bot já vinculado sai da lista: sugerir o que está vinculado é
+        # oferecer uma ação sem efeito
+        candidatos = Bot.objects.exclude(id=projeto.bot_id).order_by('name')
+        sugeridos, outros = sugerir_bots_ci(projeto.path, candidatos)
     return render(request, 'botapp/ci_project_detail.html', {
         'project': projeto,
         'schedules': projeto.schedules.order_by('-active', 'cron'),

@@ -77,7 +77,7 @@
                 <i class="bi bi-exclamation-triangle text-amber-400" title="{{ p.last_sync_error }}"></i>
               {% endif %}
             </td>
-            <td class="text-slate-400">{{ p.bot.name|default:"—" }}</td>
+            <td>{% if p.bot %}<a class="text-sky-400 hover:underline" href="{% url 'bot_detail' p.bot.id %}">{{ p.bot.name }}</a>{% else %}<span class="text-slate-400">—</span>{% endif %}</td>
             <td>{{ p.last_pipeline_at|date:"d/m/Y H:i"|default:"—" }}</td>
             <td>
               {% if p.last_pipeline_status == 'success' %}

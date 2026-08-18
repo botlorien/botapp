@@ -11,7 +11,7 @@
         <i class="bi bi-folder2-open text-sky-400"></i> {{ project.path }}
       </h1>
       <p class="text-slate-400 mt-1 text-sm">
-        {% if project.bot %}vinculado ao bot <strong class="text-slate-200">{{ project.bot.name }}</strong>
+        {% if project.bot %}vinculado ao bot <a href="{% url 'bot_detail' project.bot.id %}" class="text-sky-400 hover:underline font-semibold">{{ project.bot.name }}</a>
         {% else %}<span class="text-amber-400">sem vínculo com bot</span>{% endif %}
       </p>
     </div>
@@ -67,7 +67,7 @@
     <div class="flex items-center gap-3 flex-wrap mb-3">
       <span class="text-sm text-slate-300">
         <i class="bi bi-robot text-blue-400"></i>
-        vinculado a <strong class="text-slate-100">{{ project.bot.name }}</strong>
+        vinculado a <a href="{% url 'bot_detail' project.bot.id %}" class="text-sky-400 hover:underline font-semibold">{{ project.bot.name }}</a>
       </span>
       <form method="post" action="{% url 'ci_project_link_bot' project.id %}">
         {% csrf_token %}

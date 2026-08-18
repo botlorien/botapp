@@ -71,7 +71,7 @@
           {% for p in sem_instrumentacao %}
           <tr>
             <td><a class="text-sky-400 hover:underline" href="{% url 'ci_project_detail' p.id %}">{{ p.path }}</a></td>
-            <td>{{ p.bot.name }}</td>
+            <td>{% if p.bot %}<a class="text-sky-400 hover:underline" href="{% url 'bot_detail' p.bot.id %}">{{ p.bot.name }}</a>{% else %}—{% endif %}</td>
             <td>{{ p.last_pipeline_at|date:"d/m/Y H:i"|default:"—" }}</td>
             <td>{{ p.bot.last_execution_at|date:"d/m/Y H:i"|default:"nunca" }}</td>
           </tr>

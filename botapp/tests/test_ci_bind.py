@@ -67,3 +67,24 @@ class VinculoPelaTelaDoProjeto(TestCase):
         self.client.post(self.url, {'desvincular': '1'})
         self.projeto.refresh_from_db()
         self.assertIsNone(self.projeto.bot_id)
+
+    def test_bot_vinculado_e_clicavel(self):
+        """O nome do bot na tela de CI leva à tela do bot."""
+        self.projeto.bot = self.certo
+        self.projeto.save()
+        html = self.client.get(f'/ci/projects/{self.projeto.id}/').content.decode()
+        self.assertIn(f'href="/bots/{self.certo.id}/"', html)
+
+    def test_bot_ja_vinculado_sai_das_sugestoes(self):
+        """Sugerir o bot que já está vinculado é oferecer ação sem efeito."""
+        self.projeto.bot = self.certo
+        self.projeto.save()
+        r = self.client.get(f'/ci/projects/{self.projeto.id}/')
+        self.assertNotIn(self.certo, r.context['bots_sugeridos'])
+        self.assertNotIn(self.certo, r.context['bots_outros'])
+
+    def test_bot_vinculado_e_clicavel_na_lista(self):
+        self.projeto.bot = self.certo
+        self.projeto.save()
+        html = self.client.get('/ci/projects/').content.decode()
+        self.assertIn(f'href="/bots/{self.certo.id}/"', html)
