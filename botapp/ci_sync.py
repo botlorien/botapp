@@ -11,6 +11,7 @@ import os
 import re
 from datetime import timedelta
 
+from django.db import models
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -174,7 +175,10 @@ def sync_pipelines(connection, cliente=None, limite_por_projeto=50,
     """
     cliente = cliente or client_for(connection)
     total_novos = total_alertas = 0
-    projetos = connection.projects.filter(monitored=True, archived=False)
+    # inativo = arquivado no CI OU arquivado aqui. Nos dois casos não vale
+    # gastar chamada de API nem gerar alerta: ninguém vai agir sobre ele.
+    projetos = connection.projects.filter(monitored=True, archived=False,
+                                          local_archived=False)
 
     for projeto in projetos:
         limite = limite_por_projeto if projeto.pipelines_cursor else limite_primeira_vez
@@ -294,6 +298,8 @@ def _sync_jobs(cliente, pipeline):
 
 def _abrir_alerta(tipo, projeto, mensagem, severidade, payload):
     """Cria alerta se não houver um igual em aberto (evita repetir a cada ciclo)."""
+    if projeto.archived or projeto.local_archived:
+        return 0   # projeto inativo não gera alerta
     dedupe = Alert.objects.filter(type=tipo, resolved_at__isnull=True,
                                   bot=projeto.bot)
     if projeto.bot_id is None:
@@ -399,6 +405,33 @@ def _capturar_cauda(cliente, job):
     job.save(update_fields=['log_excerpt', 'log_excerpt_at'])
 
 
+def fechar_alertas_de_inativos(connection):
+    """Fecha alertas de projeto que virou inativo (arquivado no CI ou aqui).
+
+    Sem isto, arquivar um repositório não limpa o painel: o alerta continua
+    aberto para sempre, sobre algo que ninguém vai mais consertar.
+    """
+    from django.utils import timezone as tz
+    inativos = connection.projects.filter(
+        models.Q(archived=True) | models.Q(local_archived=True)
+    ).values_list('id', flat=True)
+    if not inativos:
+        return 0
+    abertos = Alert.objects.filter(
+        type__in=[Alert.Type.PIPELINE_FAILED, Alert.Type.PIPELINE_MASKED_ERROR,
+                  Alert.Type.SCHEDULE_WITHOUT_RUN, Alert.Type.PROJECT_NEVER_RAN],
+        resolved_at__isnull=True)
+    n = 0
+    for alerta in abertos:
+        if (alerta.payload or {}).get('project_id') in set(inativos):
+            alerta.resolved_at = tz.now()
+            alerta.payload = {**(alerta.payload or {}),
+                              'fechado_por': 'projeto_inativo'}
+            alerta.save(update_fields=['resolved_at', 'payload'])
+            n += 1
+    return n
+
+
 def resolver_alertas_obsoletos(connection):
     """Fecha alerta de falha cujo projeto já voltou a passar depois.
 
@@ -456,7 +489,8 @@ def avaliar_agendamentos(connection, fator=3):
     """
     alertas = 0
     agora = timezone.now()
-    for projeto in connection.projects.filter(monitored=True, archived=False):
+    for projeto in connection.projects.filter(monitored=True, archived=False,
+                                              local_archived=False):
         for ag in projeto.schedules.filter(active=True):
             ultimo = projeto.pipelines.filter(source='schedule').order_by(
                 '-created_at').first()
@@ -533,6 +567,7 @@ def sync_connection(connection, forcar_descoberta=False):
         # resolve antes de avaliar: alerta obsoleto poluindo o painel esconde o
         # alerta que importa
         resultado['alertas_resolvidos'] = resolver_alertas_obsoletos(connection)
+        resultado['alertas_de_inativos'] = fechar_alertas_de_inativos(connection)
         resultado['alertas_agendamento'] = avaliar_agendamentos(connection)
 
         connection.last_sync_at = timezone.now()

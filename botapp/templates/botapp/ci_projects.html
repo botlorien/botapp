@@ -39,6 +39,11 @@
              onchange="this.form.submit()"
              {% if request.GET.problemas == '1' %}checked{% endif %}> só com falha
     </label>
+    <label class="flex items-center gap-2 text-sm text-slate-300">
+      <input type="checkbox" name="inativos" value="1" class="fx-checkbox"
+             onchange="this.form.submit()"
+             {% if request.GET.inativos == '1' %}checked{% endif %}> incluir inativos
+    </label>
     <button class="btn-ghost"><i class="bi bi-funnel"></i> Filtrar</button>
     {% if q or status or request.GET.monitored or request.GET.problemas %}
     <a href="{% url 'ci_projects' %}" class="btn-ghost"><i class="bi bi-x-lg"></i> Limpar</a>
@@ -63,6 +68,11 @@
           <tr>
             <td>
               <a class="text-sky-400 hover:underline" href="{% url 'ci_project_detail' p.id %}">{{ p.path }}</a>
+              {% if p.archived %}
+                <span class="chip chip-warning text-[10px]" title="arquivado no servidor de CI">inativo · arquivado no CI</span>
+              {% elif p.local_archived %}
+                <span class="chip chip-warning text-[10px]" title="{{ p.local_archived_reason|default:'arquivado no painel' }}">inativo · arquivado aqui</span>
+              {% endif %}
               {% if p.last_sync_error %}
                 <i class="bi bi-exclamation-triangle text-amber-400" title="{{ p.last_sync_error }}"></i>
               {% endif %}

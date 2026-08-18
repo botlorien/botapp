@@ -498,6 +498,66 @@ class TestCorteDeIdade(BaseCI):
         self.assertEqual(Alert.objects.count(), 0)        # mas nao alerta
 
 
+class TestInativos(BaseCI):
+    def test_projeto_arquivado_no_ci_e_detectado_na_redescoberta(self):
+        """O caso que cria ponto cego: arquivar no CI DEPOIS da importação.
+
+        Se a consulta filtrasse arquivados, o projeto sumiria do resultado e o
+        painel jamais saberia — seguiria sincronizando e alertando.
+        """
+        from botapp.ci_sync import sync_projects
+        rotas = {
+            '/api/v4/groups/': ([{'id': 7, 'path_with_namespace': 'g/p',
+                                  'name': 'p', 'archived': False}], {}),
+            '/api/v4/projects/7/pipeline_schedules': ([], {}),
+        }
+        ServidorFalso.rotas = rotas
+        conexao = self.conexao()
+        sync_projects(conexao, self.cliente())
+        self.assertFalse(CIProject.objects.get(external_id=7).archived)
+
+        # agora ele foi arquivado no servidor
+        rotas['/api/v4/groups/'] = ([{'id': 7, 'path_with_namespace': 'g/p',
+                                      'name': 'p', 'archived': True}], {})
+        ServidorFalso.rotas = rotas
+        sync_projects(conexao, self.cliente())
+        self.assertTrue(CIProject.objects.get(external_id=7).archived)
+
+    def test_projeto_inativo_nao_gera_alerta(self):
+        from botapp.ci_sync import sync_pipelines, sync_projects
+        ServidorFalso.rotas = TestSync._rotas_completas(self, 'failed')
+        conexao = self.conexao()
+        sync_projects(conexao, self.cliente())
+        CIProject.objects.filter(external_id=7).update(local_archived=True)
+        sync_pipelines(conexao, self.cliente())
+        self.assertEqual(Alert.objects.count(), 0)
+
+    def test_arquivar_fecha_os_alertas_abertos(self):
+        from botapp.ci_sync import (fechar_alertas_de_inativos, sync_pipelines,
+                                    sync_projects)
+        ServidorFalso.rotas = TestSync._rotas_completas(self, 'failed')
+        conexao = self.conexao()
+        sync_projects(conexao, self.cliente())
+        sync_pipelines(conexao, self.cliente())
+        self.assertEqual(Alert.objects.filter(resolved_at__isnull=True).count(), 1)
+
+        CIProject.objects.filter(external_id=7).update(local_archived=True)
+        self.assertEqual(fechar_alertas_de_inativos(conexao), 1)
+        self.assertEqual(Alert.objects.filter(resolved_at__isnull=True).count(), 0)
+
+    def test_inativo_nao_consome_chamada_de_api(self):
+        from botapp.ci_sync import sync_pipelines, sync_projects
+        ServidorFalso.rotas = TestSync._rotas_completas(self)
+        conexao = self.conexao()
+        sync_projects(conexao, self.cliente())
+        CIProject.objects.filter(external_id=7).update(local_archived=True)
+        ServidorFalso.recebidos = []
+        r = sync_pipelines(conexao, self.cliente())
+        self.assertEqual(r['projetos'], 0)
+        self.assertFalse(any('/pipelines' in x['path']
+                             for x in ServidorFalso.recebidos))
+
+
 class TestSemVazamento(TestCase):
     """O pacote é público: o código não pode citar organização nem credencial."""
 

@@ -17,9 +17,41 @@
     </div>
     <div class="flex gap-2 flex-wrap">
       {% if project.web_url %}<a href="{{ project.web_url }}" target="_blank" rel="noopener" class="btn-ghost"><i class="bi bi-box-arrow-up-right"></i> Abrir no CI</a>{% endif %}
+      {% if pode_editar and not project.archived %}
+      <form method="post" action="{% url 'ci_project_archive' project.id %}" class="flex items-end gap-2">
+        {% csrf_token %}
+        {% if not project.local_archived %}
+        <input type="text" name="motivo" class="fx-input text-xs py-1" placeholder="motivo (opcional)">
+        <button class="btn-ghost"><i class="bi bi-archive"></i> Arquivar no painel</button>
+        {% else %}
+        <button class="btn-ghost"><i class="bi bi-arrow-counterclockwise"></i> Reativar</button>
+        {% endif %}
+      </form>
+      {% endif %}
       <a href="{% url 'ci_projects' %}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Projetos</a>
     </div>
   </div>
+
+  {% if project.archived or project.local_archived %}
+  <div class="fx-header rounded-xl p-4 border-l-4 border-amber-500">
+    <div class="text-sm text-amber-300 font-semibold">
+      <i class="bi bi-archive-fill"></i>
+      {% if project.archived %}Inativo — arquivado no servidor de CI
+      {% else %}Inativo — arquivado neste painel{% endif %}
+    </div>
+    <p class="text-xs text-slate-300 mt-1">
+      Não é sincronizado nem gera alerta.
+      {% if project.local_archived %}
+        Arquivado em {{ project.local_archived_at|date:"d/m/Y H:i" }}
+        {% if project.local_archived_by %}por {{ project.local_archived_by }}{% endif %}
+        {% if project.local_archived_reason %}— “{{ project.local_archived_reason }}”{% endif %}.
+        Para arquivar também no servidor de CI (o painel não faz isso: o acesso
+        é somente-leitura), use
+        <a class="text-sky-400 hover:underline" href="{{ project.web_url }}/edit" target="_blank" rel="noopener">as configurações do projeto</a>.
+      {% endif %}
+    </p>
+  </div>
+  {% endif %}
 
   {% if project.last_sync_error %}
   <div class="fx-header rounded-xl p-4 border-l-4 border-amber-500">

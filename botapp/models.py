@@ -281,6 +281,21 @@ class CIProject(models.Model):
         related_name='ci_projects',
         help_text='Vínculo com o bot instrumentado pelo SDK, quando houver.')
 
+    # Arquivamento LOCAL: o projeto continua existindo no servidor de CI, mas
+    # deixa de ser sincronizado e de gerar alerta aqui. Serve para repositório
+    # dormente, cuja última execução falhou há meses: o alerta é tecnicamente
+    # correto e operacionalmente inútil.
+    #
+    # Não arquiva no servidor de CI de propósito — o cliente é somente-leitura
+    # (ver docs/ci-integration-design.md §2). Arquivar lá é ação de quem tem
+    # permissão de escrita, feita na interface do próprio CI.
+    local_archived = models.BooleanField(default=False, db_index=True)
+    local_archived_at = models.DateTimeField(null=True, blank=True)
+    local_archived_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True,
+        blank=True, related_name='botapp_archived_ci_projects')
+    local_archived_reason = models.CharField(max_length=255, blank=True, default='')
+
     # cursor do sync incremental — sem ele cada ciclo relê a história inteira
     pipelines_cursor = models.DateTimeField(null=True, blank=True)
     last_sync_error = models.TextField(blank=True, default='')
@@ -306,6 +321,11 @@ class CIProject(models.Model):
 
     def __str__(self):
         return self.path
+
+    @property
+    def inativo(self):
+        """Arquivado no servidor de CI ou arquivado localmente."""
+        return self.archived or self.local_archived
 
 
 class CISchedule(models.Model):

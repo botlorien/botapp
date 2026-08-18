@@ -93,6 +93,10 @@ def project_list(request):
         qs = qs.filter(monitored=True)
     if request.GET.get('problemas') == '1':
         qs = qs.filter(last_pipeline_status__in=['failed', 'canceled'])
+    if request.GET.get('inativos') != '1':
+        # inativo fica FORA por padrão: o painel é para o que ainda exige ação.
+        # O checkbox "incluir inativos" traz de volta quando é para auditar.
+        qs = qs.filter(archived=False, local_archived=False)
 
     qs = qs.order_by('-last_pipeline_at', 'path')
     paginator = Paginator(qs, 50)
@@ -152,6 +156,45 @@ def project_link_bot(request, project_id):
     bot_id = (request.POST.get('bot_id') or '').strip()
     projeto.bot = get_object_or_404(Bot, id=bot_id) if bot_id else None
     projeto.save(update_fields=['bot'])
+    return redirect('ci_project_detail', project_id=projeto.id)
+
+
+@login_required
+@require_POST
+def project_archive(request, project_id):
+    """Arquiva (ou reativa) o projeto NO PAINEL.
+
+    Não arquiva no servidor de CI: o cliente é somente-leitura por desenho, e
+    dar escrita ao token ampliaria muito o estrago em caso de vazamento — ele
+    alcança código-fonte e log de build de todo o namespace. Para arquivar lá,
+    a tela oferece o link direto das configurações do projeto.
+    """
+    _exige_ci(request)
+    if not scoping.pode_editar(request):
+        return JsonResponse({'ok': False, 'erro': 'sem permissão'}, status=403)
+    projeto = get_object_or_404(CIProject, id=project_id)
+    motivo = (request.POST.get('motivo') or '').strip()[:255]
+
+    if projeto.local_archived:
+        projeto.local_archived = False
+        projeto.local_archived_at = None
+        projeto.local_archived_by = None
+        projeto.local_archived_reason = ''
+    else:
+        projeto.local_archived = True
+        projeto.local_archived_at = timezone.now()
+        projeto.local_archived_by = request.user
+        projeto.local_archived_reason = motivo
+    projeto.save(update_fields=['local_archived', 'local_archived_at',
+                                'local_archived_by', 'local_archived_reason'])
+
+    # arquivar sem limpar os alertas deixaria o painel sujo com algo que
+    # ninguém vai mais consertar
+    from .ci_sync import fechar_alertas_de_inativos
+    fechados = fechar_alertas_de_inativos(projeto.connection)
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'ok': True, 'arquivado': projeto.local_archived,
+                             'alertas_fechados': fechados})
     return redirect('ci_project_detail', project_id=projeto.id)
 
 

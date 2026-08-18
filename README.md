@@ -686,6 +686,26 @@ namespace. Recomendações que o próprio código impõe:
 | `BOTAPP_CI_ALLOW_INSECURE` | `false` | permite `http://` na base_url |
 | `BOTAPP_CI_TIMEOUT_SECONDS` | `30` | timeout por chamada |
 
+### Projetos inativos
+
+Projeto **arquivado no servidor de CI** é detectado na redescoberta e marcado
+como inativo: a consulta traz os arquivados de propósito, porque filtrá-los
+criaria um ponto cego permanente — um projeto arquivado depois da primeira
+importação sumiria do resultado, o painel nunca saberia, e seguiria
+sincronizando e alertando um repositório que ninguém mantém.
+
+Também dá para **arquivar no painel** um projeto que segue ativo no CI mas está
+dormente (`/ci/projects/<id>/` › Arquivar no painel). Em ambos os casos o
+projeto deixa de ser sincronizado, deixa de gerar alerta, e os alertas abertos
+dele são fechados. Ele some da listagem por padrão — o checkbox *incluir
+inativos* o traz de volta.
+
+O painel **não arquiva no servidor de CI**: o cliente é somente-leitura por
+desenho. A tela oferece o link direto das configurações do projeto para quem
+tem permissão de escrita fazer isso lá.
+
+Em lote: `python manage.py archive_dormant_ci_projects --days 60 --dry-run`.
+
 ### Detecção de "verde que mente"
 
 É **opt-in por projeto** (`scan_logs`), porque custa uma chamada de log por job

@@ -204,15 +204,23 @@ class GitLabClient:
         v = self._request('/version').json()
         return {'version': v.get('version', '?'), 'revision': v.get('revision', '')}
 
-    def projetos(self, namespace, incluir_arquivados=False):
+    def projetos(self, namespace, incluir_arquivados=True):
         """Projetos do grupo, com subgrupos.
+
+        Traz os ARQUIVADOS também, por padrão. Filtrar arquivados na consulta
+        parece economia, mas cria um ponto cego permanente: projeto arquivado
+        DEPOIS da primeira importação simplesmente some do resultado, o painel
+        nunca fica sabendo, e segue sincronizando e alertando um repositório que
+        ninguém mantém mais. Trazer todos e marcar a flag é o que mantém o
+        estado fiel.
 
         Endpoint de GRUPO de propósito: os equivalentes de instância (ex.: listar
         todos os runners) exigem admin e devolvem 403 para token comum.
         """
         params = {'include_subgroups': 'true',
-                  'archived': 'true' if incluir_arquivados else 'false',
                   'order_by': 'path', 'sort': 'asc'}
+        if not incluir_arquivados:
+            params['archived'] = 'false'
         return self._paginado(f'/groups/{self._q(namespace)}/projects', params)
 
     def agendamentos(self, project_id):
