@@ -61,3 +61,12 @@ class ModalDeLog(TestCase):
         r = self.client.get(f'/ci/jobs/{self.job.id}/excerpt/')
         self.assertIn('text/plain', r['Content-Type'])
         self.assertEqual(r['X-Content-Type-Options'], 'nosniff')
+
+    def test_projeto_e_clicavel_na_aba_de_pipelines(self):
+        """Da aba de pipelines do bot dá para chegar ao projeto de CI."""
+        html = self._html(f'/bots/{self.bot.id}/')
+        self.assertIn(f'href="/ci/projects/{self.projeto.id}/"', html)
+
+    def test_projeto_e_clicavel_na_tela_da_pipeline(self):
+        html = self._html(f'/ci/pipelines/{self.pipeline.id}/')
+        self.assertIn(f'href="/ci/projects/{self.projeto.id}/"', html)

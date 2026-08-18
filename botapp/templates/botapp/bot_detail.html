@@ -274,7 +274,7 @@
           {% for p in ci_pipelines %}
           <tr>
             <td><a class="text-sky-400 hover:underline" href="{% url 'ci_pipeline_detail' p.id %}">#{{ p.external_id }}</a></td>
-            <td class="text-slate-400">{{ p.project.path }}</td>
+            <td><a class="text-sky-400 hover:underline" href="{% url 'ci_project_detail' p.project.id %}">{{ p.project.path }}</a></td>
             <td>
               {% if p.status == 'success' and p.has_masked_error %}
                 <span class="chip chip-warning" title="sucesso com erro no log">success ⚠</span>
