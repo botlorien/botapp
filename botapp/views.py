@@ -50,6 +50,18 @@ def _distinct_departments():
     return deps
 
 
+def situacao_padrao(request):
+    """Situação escolhida no filtro, com 'ativos' como padrão da tela.
+
+    A distinção é entre a chave AUSENTE e a chave VAZIA: o formulário é GET e
+    manda `is_active` sempre — vazio quando o operador escolhe "Todos". Então
+    ausência = ninguém escolheu nada ainda (primeira visita, "Limpar", atalhos
+    de período) e é aí que o padrão vale. Sem essa distinção não haveria como
+    pedir "Todos", porque a escolha seria indistinguível do padrão.
+    """
+    return request.GET.get('is_active', 'true')
+
+
 @login_required
 def filter_bots(request):
     """Queryset de Bot com filtros. Usa Bot.last_status/last_execution_at
@@ -63,7 +75,7 @@ def filter_bots(request):
     """
     name = request.GET.get("name")
     department = request.GET.get("department")
-    is_active = request.GET.get('is_active')
+    is_active = situacao_padrao(request)
     last_status = request.GET.get('last_status')
     os_platform = request.GET.get("os_platform")
     filter_mode = request.GET.get("filter_mode", "in")
@@ -106,7 +118,11 @@ def filter_bots(request):
             bots = bots.filter(id__in=bot_ids)
 
     # Alias para retrocompat com o template existente que usa `latest_status`
-    bots = bots.annotate(latest_status=F('last_status')).order_by('-last_execution_at', '-updated_at')
+    # nulls_last: quem NUNCA executou tem last_execution_at nulo, e o Postgres
+    # ordena NULL primeiro em DESC — o bot que nunca rodou aparecia no topo de
+    # uma lista que se anuncia "ordenada por última execução". Vai para o fim.
+    bots = bots.annotate(latest_status=F('last_status')).order_by(
+        F('last_execution_at').desc(nulls_last=True), '-updated_at')
     return bots
 
 
@@ -124,6 +140,8 @@ def bot_list(request):
         "bots": page_obj,
         "page_obj": page_obj,
         "total_bots": paginator.count,
+        # o <select> precisa refletir o padrão, não só o que veio na URL
+        "is_active_filter": situacao_padrao(request),
         "departments": _distinct_departments() if _deps is None else _deps,
         "today_iso": today.isoformat(),
         "seven_days_ago_iso": (today - timedelta(days=7)).isoformat(),

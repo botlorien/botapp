@@ -14,7 +14,7 @@
         Bots Disponíveis
       </h1>
       <p class="text-slate-400 mt-1">
-        {{ total_bots }} bot(s) cadastrado(s) · <span class="text-slate-500">ordenados por última execução</span>
+        {{ total_bots }} bot(s) listado(s) · <span class="text-slate-500">ordenados por última execução{% if is_active_filter == "true" %} · só ativos{% elif is_active_filter == "false" %} · só inativos{% endif %}</span>
       </p>
     </div>
 
@@ -48,9 +48,9 @@
       <div>
         <label class="fx-label">Situação</label>
         <select name="is_active" class="fx-select">
-          <option value="">Todos</option>
-          <option value="true"  {% if request.GET.is_active == "true" %}selected{% endif %}>Ativos</option>
-          <option value="false" {% if request.GET.is_active == "false" %}selected{% endif %}>Inativos</option>
+          <option value=""      {% if is_active_filter == "" %}selected{% endif %}>Todos</option>
+          <option value="true"  {% if is_active_filter == "true" %}selected{% endif %}>Ativos</option>
+          <option value="false" {% if is_active_filter == "false" %}selected{% endif %}>Inativos</option>
         </select>
       </div>
 
