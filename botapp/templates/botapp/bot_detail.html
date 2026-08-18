@@ -61,9 +61,8 @@
       <div class="flex-1 min-w-0">
         <h2 class="text-lg font-semibold text-slate-100">Projeto de CI</h2>
         <p class="text-sm text-slate-400 mt-0.5">
-          Vincular o repositório faz o painel mostrar as duas visões juntas: o que
-          o SDK registrou e o que o CI observou. É assim que aparece o caso de
-          <strong>rodou no CI e não instrumentou</strong>.
+          Vincule o repositório para acompanhar, na mesma tela, os registros do
+          SDK e as execuções de CI.
         </p>
 
         {% if ci_projects %}
@@ -125,9 +124,8 @@
           <button class="btn-primary text-xs py-2"><i class="bi bi-link-45deg"></i> Vincular</button>
         </form>
         <p class="text-xs text-slate-500 mt-2">
-          A sugestão apenas ORDENA por semelhança — quem confirma é você, de
-          propósito: vincular ao repositório errado atribuiria telemetria ao bot
-          errado.
+          Os repositórios com nome parecido aparecem primeiro na lista. Confirme
+          o repositório antes de vincular.
         </p>
         {% endif %}
       </div>
@@ -279,7 +277,7 @@
             <td class="text-slate-400">{{ p.project.path }}</td>
             <td>
               {% if p.status == 'success' and p.has_masked_error %}
-                <span class="chip chip-warning" title="verde com erro no log">success ⚠</span>
+                <span class="chip chip-warning" title="sucesso com erro no log">success ⚠</span>
               {% elif p.status == 'success' %}<span class="chip chip-success">success</span>
               {% else %}<span class="chip chip-danger">{{ p.status }}</span>{% endif %}
             </td>
@@ -323,8 +321,7 @@
            class="p-4 overflow-auto text-xs text-slate-200 whitespace-pre-wrap flex-1"
            style="font-family: ui-monospace, monospace"></pre>
       <p class="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-700">
-        Log buscado no servidor de CI a cada abertura — o token nunca vai para o
-        navegador. O conteúdo é inserido como TEXTO, nunca como HTML.
+        Log carregado do servidor de CI a cada abertura.
       </p>
     </div>
   </div>
@@ -359,12 +356,7 @@
     m.classList.add('hidden'); m.classList.remove('flex');
   }
 
-  // XSS: os valores abaixo vêm do BOT (traceback, host, resultado) e chegam a
-  // ser interpolados em innerHTML. Um bot que processa entrada de terceiro —
-  // assunto de e-mail, nome de arquivo, campo de portal — pode ter no traceback
-  // algo como <img src=x onerror=...>, que executaria no painel de quem abre o
-  // log. Escapar aqui fecha isso; a alternativa (textContent) exigiria
-  // reconstruir a montagem inteira.
+  // Dados da execução vêm de fonte externa — escapar antes de montar o HTML.
   function esc(valor) {
     if (valor === null || valor === undefined) return valor;
     return String(valor)
@@ -512,11 +504,7 @@ function trocarAba(qual) {
 }
 
 // ── Modal do log ───────────────────────────────────────────────────────
-// REGRA DE SEGURANÇA DESTE BLOCO: log de CI é conteúdo NÃO CONFIÁVEL — vem de
-// qualquer script que qualquer pessoa colocou num pipeline. Ele é inserido
-// SEMPRE com textContent, NUNCA com innerHTML/insertAdjacentHTML. O servidor
-// ainda o entrega como text/plain + nosniff, mas a garantia real está aqui:
-// textContent não interpreta marcação, então <script> vira texto na tela.
+// Conteúdo vindo do CI é externo — inserir sempre com textContent.
 function abrirLogsPipeline(botao) {
   const modal = document.getElementById('modal-log-ci');
   const titulo = document.getElementById('modal-log-titulo');
@@ -541,7 +529,7 @@ function abrirLogsPipeline(botao) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'btn-ghost text-xs py-1';
-        // textContent: o nome do job também vem do CI
+        // textContent - o nome do job vem do CI
         b.textContent = `${job.nome} (${job.status})`;
         b.onclick = () => carregarLogJob(job.id, b);
         listaJobs.appendChild(b);
@@ -560,7 +548,7 @@ function carregarLogJob(jobId, botao) {
   fetch(`${window.BOTAPP_PREFIX || ''}/ci/jobs/${jobId}/log/`)
     .then(r => r.text())
     .then(texto => {
-      // textContent — nunca innerHTML. É esta linha que impede XSS via log.
+      // textContent, nunca innerHTML
       conteudo.textContent = texto || '(log vazio)';
       conteudo.scrollTop = conteudo.scrollHeight;
     })

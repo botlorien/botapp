@@ -116,11 +116,18 @@ def project_detail(request, project_id):
         _projetos_no_escopo(request, CIProject.objects.select_related('bot')),
         id=project_id)
     pipelines = projeto.pipelines.order_by('-created_at')[:50]
+
+    sugeridos, outros = [], []
+    if scoping.pode_editar(request):
+        from .views import sugerir_bots_ci
+        sugeridos, outros = sugerir_bots_ci(projeto.path,
+                                            Bot.objects.order_by('name'))
     return render(request, 'botapp/ci_project_detail.html', {
         'project': projeto,
         'schedules': projeto.schedules.order_by('-active', 'cron'),
         'pipelines': pipelines,
-        'bots': Bot.objects.order_by('name') if scoping.pode_editar(request) else [],
+        'bots_sugeridos': sugeridos,
+        'bots_outros': outros,
         'pode_editar': scoping.pode_editar(request),
     })
 
@@ -155,9 +162,32 @@ def project_link_bot(request, project_id):
         return JsonResponse({'ok': False, 'erro': 'sem permissão'}, status=403)
     projeto = get_object_or_404(CIProject, id=project_id)
     bot_id = (request.POST.get('bot_id') or '').strip()
-    projeto.bot = get_object_or_404(Bot, id=bot_id) if bot_id else None
+    nome = (request.POST.get('bot_name') or '').strip()
+    volta = redirect('ci_project_detail', project_id=projeto.id)
+
+    if request.POST.get('desvincular') == '1':
+        projeto.bot = None
+    elif bot_id:
+        projeto.bot = get_object_or_404(Bot, id=bot_id)
+    elif nome:
+        # o campo pesquisável envia o NOME. Nome de bot não é único no banco,
+        # então empate vira erro em vez de escolha silenciosa — vincular ao bot
+        # errado é pior do que não vincular.
+        candidatos = list(Bot.objects.filter(name__iexact=nome)[:2])
+        if not candidatos:
+            messages.error(request, f'Bot não encontrado: “{nome}”. '
+                                    f'Escolha um item da lista.')
+            return volta
+        if len(candidatos) > 1:
+            messages.error(request, f'Há mais de um bot chamado “{nome}”. '
+                                    f'Use um dos botões de sugestão.')
+            return volta
+        projeto.bot = candidatos[0]
+    else:
+        return volta  # nada informado: não mexe no vínculo existente
+
     projeto.save(update_fields=['bot'])
-    return redirect('ci_project_detail', project_id=projeto.id)
+    return volta
 
 
 @login_required

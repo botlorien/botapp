@@ -275,7 +275,7 @@ class CIProject(models.Model):
     scan_logs = models.BooleanField(
         default=False,
         help_text='Procura padrão de erro no log de pipeline BEM-SUCEDIDO '
-                  '(detecta "verde que mente"). Custa uma chamada por job.')
+                  'com status de sucesso. Custa uma chamada por job.')
     bot = models.ForeignKey(
         Bot, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='ci_projects',

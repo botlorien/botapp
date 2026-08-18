@@ -340,6 +340,18 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {% if messages %}
+      <div class="space-y-2 mb-4">
+        {% for m in messages %}
+        <div class="fx-header rounded-xl p-3 text-sm border-l-4
+          {% if m.level_tag == 'error' %}border-red-500 text-red-300
+          {% elif m.level_tag == 'warning' %}border-amber-500 text-amber-300
+          {% else %}border-sky-500 text-slate-200{% endif %}">
+          {{ m }}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
       {% block content %}{% endblock %}
     </main>
   </div>

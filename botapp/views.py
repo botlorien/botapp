@@ -160,38 +160,51 @@ def _normalizar_nome(texto):
     return re.sub(r'[^a-z0-9]+', ' ', texto).strip()
 
 
-def _sugerir_projetos_ci(nome_bot, projetos, limite=6):
-    """Ordena projetos por semelhança com o nome do bot.
+def _ordenar_por_semelhanca(referencia, itens, rotulo, limite=6, corte=0.34):
+    """Separa `itens` em (sugeridos, resto) por semelhança com `referencia`.
 
     Combina duas medidas: proporção de palavras em comum (pega
     "atualiza painel led" dentro de "bot_atualiza_painel_led_v2") e similaridade
     de sequência (tolera plural, typo e ordem trocada). A sugestão só ORDENA —
-    quem confirma é a pessoa, porque vincular ao repositório errado atribuiria
-    telemetria ao bot errado.
+    quem confirma é a pessoa.
+
+    Serve aos dois sentidos do vínculo (bot → projeto e projeto → bot), que
+    precisam ordenar igual; duas cópias divergiriam com o tempo.
     """
     from difflib import SequenceMatcher
 
-    alvo = _normalizar_nome(nome_bot)
+    alvo = _normalizar_nome(referencia)
     palavras_alvo = {p for p in alvo.split() if len(p) > 2 and p != 'bot'}
 
     pontuados = []
-    for projeto in projetos:
-        caminho = _normalizar_nome(projeto.path)
-        palavras = {p for p in caminho.split() if len(p) > 2 and p != 'bot'}
+    for item in itens:
+        texto = _normalizar_nome(rotulo(item))
+        palavras = {p for p in texto.split() if len(p) > 2 and p != 'bot'}
         if palavras_alvo:
             comuns = len(palavras_alvo & palavras) / len(palavras_alvo)
         else:
             comuns = 0.0
-        sequencia = SequenceMatcher(None, alvo, caminho).ratio()
-        pontuados.append((0.65 * comuns + 0.35 * sequencia, projeto))
+        sequencia = SequenceMatcher(None, alvo, texto).ratio()
+        pontuados.append((0.65 * comuns + 0.35 * sequencia, rotulo(item), item))
 
-    pontuados.sort(key=lambda x: (-x[0], x[1].path))
+    pontuados.sort(key=lambda x: (-x[0], x[1]))
     # só entra como "sugerido" o que tem semelhança real; o resto vai para a
     # lista completa, que segue pesquisável
-    sugeridos = [p for nota, p in pontuados[:limite] if nota >= 0.34]
-    ids = {p.id for p in sugeridos}
-    outros = [p for _, p in pontuados if p.id not in ids]
+    sugeridos = [i for nota, _, i in pontuados[:limite] if nota >= corte]
+    ids = {i.id for i in sugeridos}
+    outros = [i for _, _, i in pontuados if i.id not in ids]
     return sugeridos, outros
+
+
+def _sugerir_projetos_ci(nome_bot, projetos, limite=6):
+    """Projetos de CI mais parecidos com o nome do bot."""
+    return _ordenar_por_semelhanca(nome_bot, projetos, lambda p: p.path, limite)
+
+
+def sugerir_bots_ci(caminho_projeto, bots, limite=6):
+    """Bots mais parecidos com o caminho do projeto de CI."""
+    return _ordenar_por_semelhanca(caminho_projeto, bots, lambda b: b.name,
+                                   limite)
 
 
 @login_required

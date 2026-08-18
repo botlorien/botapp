@@ -377,8 +377,8 @@ def _avaliar_pipeline(cliente, pipeline):
             return _abrir_alerta(
                 Alert.Type.PIPELINE_MASKED_ERROR, projeto,
                 f'Pipeline #{pipeline.external_id} de {projeto.path} terminou '
-                f'VERDE mas o log do job "{job.name}" contém {padrao!r} — '
-                f'a exceção foi engolida e o processo saiu com código 0',
+                f'com sucesso, mas o log do job "{job.name}" contém '
+                f'{padrao!r}',
                 Alert.Severity.HIGH,
                 {**base, 'job': job.name, 'pattern': padrao,
                  'job_db_id': job.id})

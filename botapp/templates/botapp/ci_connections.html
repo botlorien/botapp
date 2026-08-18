@@ -34,7 +34,7 @@
             <td class="text-slate-400">{{ c.namespace }}</td>
             <td>
               {% if c.token_fingerprint %}
-                <code class="text-xs text-slate-400" title="impressão digital do token — o valor nunca é exibido">{{ c.token_fingerprint }}</code>
+                <code class="text-xs text-slate-400" title="identificador da credencial">{{ c.token_fingerprint }}</code>
               {% else %}
                 <span class="text-xs text-red-400" title="token ausente ou ilegível">indisponível</span>
               {% endif %}

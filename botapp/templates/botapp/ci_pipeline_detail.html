@@ -23,12 +23,11 @@
   {% if pipeline.has_masked_error %}
   <div class="fx-header rounded-xl p-4 border-l-4 border-amber-500">
     <div class="text-sm text-amber-300 font-semibold">
-      <i class="bi bi-exclamation-triangle-fill"></i> Verde com erro no log
+      <i class="bi bi-exclamation-triangle-fill"></i> Sucesso com erro no log
     </div>
     <p class="text-xs text-slate-300 mt-1">
-      O pipeline terminou com sucesso, mas o log contém padrão de erro: a exceção
-      foi engolida e o processo saiu com código 0. O status do CI diz OK; o
-      trabalho pode não ter acontecido.
+      O pipeline terminou com status de sucesso, mas o log contém padrão de
+      erro. Confira o log antes de considerar a execução concluída.
     </p>
   </div>
   {% endif %}
@@ -67,9 +66,8 @@
       </table>
     </div>
     <p class="px-4 py-3 text-xs text-slate-500 border-t border-slate-700">
-      O log é buscado no servidor de CI a cada abertura — o token nunca vai para o
-      navegador. Log de build pode conter segredo impresso por script; o acesso
-      exige login e respeita o escopo por departamento.
+      Log carregado do servidor de CI a cada abertura. Trate o conteúdo como
+      informação restrita.
     </p>
   </div>
 
