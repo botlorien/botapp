@@ -324,6 +324,46 @@ class TestAgendamentoSemExecucao(BaseCI):
             Alert.objects.filter(type=Alert.Type.PROJECT_NEVER_RAN).exists())
 
 
+class TestProgressoECusto(BaseCI):
+    def test_primeiro_ciclo_puxa_menos_por_projeto(self):
+        """Sem cursor, o limite é o reduzido — senão o primeiro ciclo leva horas."""
+        muitos = [{'id': 900 + i, 'status': 'success'} for i in range(40)]
+        rotas = self._rotas_base()
+        rotas['/api/v4/projects/7/pipelines'] = (muitos, {})
+        for i in range(40):
+            rotas[f'/api/v4/projects/7/pipelines/{900 + i}'] = (
+                {'id': 900 + i, 'status': 'success', 'source': 'push',
+                 'created_at': '2026-01-01T10:00:00Z'}, {})
+            rotas[f'/api/v4/projects/7/pipelines/{900 + i}/jobs'] = ([], {})
+        ServidorFalso.rotas = rotas
+
+        from botapp.ci_sync import sync_pipelines, sync_projects
+        conexao = self.conexao()
+        sync_projects(conexao, self.cliente())
+        r = sync_pipelines(conexao, self.cliente(), limite_por_projeto=50,
+                           limite_primeira_vez=5)
+        self.assertEqual(r['pipelines_novos'], 5)
+
+    def test_progresso_aparece_antes_do_fim_do_ciclo(self):
+        """O painel não pode dizer 'nunca sincronizado' enquanto o sync trabalha."""
+        ServidorFalso.rotas = self._rotas_base()
+        from botapp.ci_sync import sync_projects
+        conexao = self.conexao()
+        self.assertEqual(conexao.last_sync_status, 'never')
+        sync_projects(conexao, self.cliente())
+        conexao.refresh_from_db()
+        self.assertEqual(conexao.last_sync_status, 'ok')
+        self.assertIsNotNone(conexao.last_sync_at)
+
+    def _rotas_base(self):
+        return {
+            '/api/v4/groups/': ([{'id': 7, 'path_with_namespace': 'g/proj',
+                                  'name': 'proj'}], {}),
+            '/api/v4/projects/7/pipeline_schedules': ([], {}),
+            '/api/v4/projects/7/pipelines': ([], {}),
+        }
+
+
 class TestLimpezaAnsi(BaseCI):
     def test_ansi_nao_esconde_padrao_nem_vaza_para_o_excerpt(self):
         """Código de cor no meio da linha não pode fazer o padrão passar batido."""

@@ -117,7 +117,10 @@ def sync_projects(connection, cliente=None):
             logger.warning('agendamentos de %s falharam: %s', projeto.path, e)
 
     connection.last_discovery_at = timezone.now()
-    connection.save(update_fields=['last_discovery_at'])
+    connection.last_sync_at = timezone.now()
+    connection.last_sync_status = CIConnection.SyncStatus.OK
+    connection.save(update_fields=['last_discovery_at', 'last_sync_at',
+                                   'last_sync_status'])
     return {'projetos_criados': criados, 'projetos_atualizados': atualizados,
             'agendamentos': agendamentos, 'vistos': len(vistos)}
 
@@ -146,20 +149,34 @@ def _sync_schedules(cliente, projeto):
 # Execuções: pipelines e jobs
 # ═══════════════════════════════════════════════════════════════════════════
 
-def sync_pipelines(connection, cliente=None, limite_por_projeto=50):
+def sync_pipelines(connection, cliente=None, limite_por_projeto=50,
+                   limite_primeira_vez=10):
+    """Sincroniza execuções dos projetos monitorados.
+
+    `limite_primeira_vez` é menor de propósito: num projeto ainda sem cursor,
+    puxar 50 pipelines (com jobs e, se ligado, logs) multiplicado por centenas
+    de projetos faz o PRIMEIRO ciclo levar horas — e o valor está no que é NOVO,
+    não em importar a história. Depois do primeiro ciclo o cursor entra em ação
+    e o limite maior praticamente nunca é atingido.
+    """
     cliente = cliente or client_for(connection)
     total_novos = total_alertas = 0
     projetos = connection.projects.filter(monitored=True, archived=False)
 
     for projeto in projetos:
+        limite = limite_por_projeto if projeto.pipelines_cursor else limite_primeira_vez
         try:
-            novos, alertas = _sync_pipelines_projeto(
-                cliente, projeto, limite_por_projeto)
+            novos, alertas = _sync_pipelines_projeto(cliente, projeto, limite)
             total_novos += novos
             total_alertas += alertas
             if projeto.last_sync_error:
                 projeto.last_sync_error = ''
                 projeto.save(update_fields=['last_sync_error'])
+            # marca progresso a cada projeto: um ciclo longo não pode deixar o
+            # painel exibindo "nunca sincronizado" enquanto o sync trabalha
+            connection.last_sync_at = timezone.now()
+            connection.last_sync_status = CIConnection.SyncStatus.OK
+            connection.save(update_fields=['last_sync_at', 'last_sync_status'])
         except (CIError, CIConfigError) as e:
             # isolamento por projeto: 403/arquivado/timeout de um não interrompe
             # a varredura dos outros
