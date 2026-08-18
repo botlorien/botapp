@@ -304,27 +304,7 @@
   </div>
 
   <!-- Modal do log de CI -->
-  <div id="modal-log-ci" class="hidden fixed inset-0 z-50 items-center justify-center p-4"
-       style="background: rgba(2,6,23,.75)" onclick="if(event.target===this)fecharLogCi()">
-    <div class="glass-card w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden">
-      <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-700">
-        <h3 class="font-semibold text-slate-100">
-          <i class="bi bi-file-text text-sky-400"></i>
-          <span id="modal-log-titulo"></span>
-        </h3>
-        <button type="button" class="btn-ghost text-xs py-1" onclick="fecharLogCi()">
-          <i class="bi bi-x-lg"></i> Fechar
-        </button>
-      </div>
-      <div id="modal-log-jobs" class="p-3 flex flex-wrap gap-2 border-b border-slate-700"></div>
-      <pre id="modal-log-conteudo"
-           class="p-4 overflow-auto text-xs text-slate-200 whitespace-pre-wrap flex-1"
-           style="font-family: ui-monospace, monospace"></pre>
-      <p class="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-700">
-        Log carregado do servidor de CI a cada abertura.
-      </p>
-    </div>
-  </div>
+  {% include "botapp/_ci_log_modal.html" %}
   {% endif %}
 
   <!-- Paginação -->
@@ -504,67 +484,6 @@ function trocarAba(qual) {
 }
 
 // ── Modal do log ───────────────────────────────────────────────────────
-// Conteúdo vindo do CI é externo — inserir sempre com textContent.
-function abrirLogsPipeline(botao) {
-  const modal = document.getElementById('modal-log-ci');
-  const titulo = document.getElementById('modal-log-titulo');
-  const listaJobs = document.getElementById('modal-log-jobs');
-  const conteudo = document.getElementById('modal-log-conteudo');
-
-  titulo.textContent = botao.dataset.rotulo || 'Log da pipeline';
-  conteudo.textContent = 'carregando jobs...';
-  listaJobs.textContent = '';
-  modal.classList.remove('hidden');
-  modal.classList.add('flex');
-
-  fetch(`${window.BOTAPP_PREFIX || ''}/ci/pipelines/${botao.dataset.pipeline}/jobs.json`,
-        {headers: {'X-Requested-With': 'XMLHttpRequest'}})
-    .then(r => r.json())
-    .then(d => {
-      if (!d.ok || !d.jobs.length) {
-        conteudo.textContent = 'Nenhum job encontrado para esta pipeline.';
-        return;
-      }
-      d.jobs.forEach((job, i) => {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'btn-ghost text-xs py-1';
-        // textContent - o nome do job vem do CI
-        b.textContent = `${job.nome} (${job.status})`;
-        b.onclick = () => carregarLogJob(job.id, b);
-        listaJobs.appendChild(b);
-        if (i === 0) carregarLogJob(job.id, b);
-      });
-    })
-    .catch(() => { conteudo.textContent = 'Falha ao listar os jobs.'; });
-}
-
-function carregarLogJob(jobId, botao) {
-  const conteudo = document.getElementById('modal-log-conteudo');
-  document.querySelectorAll('#modal-log-jobs button')
-          .forEach(b => b.classList.remove('aba-ativa'));
-  if (botao) botao.classList.add('aba-ativa');
-  conteudo.textContent = 'carregando log...';
-  fetch(`${window.BOTAPP_PREFIX || ''}/ci/jobs/${jobId}/log/`)
-    .then(r => r.text())
-    .then(texto => {
-      // textContent, nunca innerHTML
-      conteudo.textContent = texto || '(log vazio)';
-      conteudo.scrollTop = conteudo.scrollHeight;
-    })
-    .catch(() => { conteudo.textContent = 'Falha ao buscar o log no servidor de CI.'; });
-}
-
-function fecharLogCi() {
-  const modal = document.getElementById('modal-log-ci');
-  modal.classList.add('hidden');
-  modal.classList.remove('flex');
-  document.getElementById('modal-log-conteudo').textContent = '';
-}
-
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') fecharLogCi();
-});
 </script>
 <style>
   .aba-ativa {

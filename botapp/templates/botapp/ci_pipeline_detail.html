@@ -14,9 +14,17 @@
         {{ pipeline.project.path }} · {{ pipeline.source|default:"origem desconhecida" }} · {{ pipeline.ref }}
       </p>
     </div>
-    <div class="flex gap-2 flex-wrap">
-      {% if pipeline.web_url %}<a href="{{ pipeline.web_url }}" target="_blank" rel="noopener" class="btn-ghost"><i class="bi bi-box-arrow-up-right"></i> Abrir no CI</a>{% endif %}
-      <a href="{% url 'ci_project_detail' pipeline.project.id %}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Projeto</a>
+    <div class="flex items-center gap-2 flex-wrap">
+      {% if jobs %}
+      <button type="button" class="btn-ghost whitespace-nowrap"
+              data-pipeline="{{ pipeline.id }}"
+              data-rotulo="Pipeline #{{ pipeline.external_id }} · {{ pipeline.project.path }}"
+              onclick="abrirLogsPipeline(this)">
+        <i class="bi bi-file-text"></i> Ver logs
+      </button>
+      {% endif %}
+      {% if pipeline.web_url %}<a href="{{ pipeline.web_url }}" target="_blank" rel="noopener" class="btn-ghost whitespace-nowrap"><i class="bi bi-box-arrow-up-right"></i> Abrir no CI</a>{% endif %}
+      <a href="{% url 'ci_project_detail' pipeline.project.id %}" class="btn-ghost whitespace-nowrap"><i class="bi bi-arrow-left"></i> Projeto</a>
     </div>
   </div>
 
@@ -54,9 +62,18 @@
             <td>{% if j.status == 'success' %}<span class="text-emerald-400">success</span>{% else %}<span class="text-red-400">{{ j.status }}</span>{% endif %}</td>
             <td class="text-slate-400">{{ j.runner_description|default:"—" }}</td>
             <td class="text-slate-400">{{ j.duration|default:"—" }}</td>
-            <td class="flex gap-2">
-              <a class="text-sky-400 hover:underline" target="_blank" rel="noopener" href="{% url 'ci_job_log' j.id %}">completo</a>
-              {% if j.log_excerpt %}<a class="text-slate-400 hover:underline" target="_blank" rel="noopener" href="{% url 'ci_job_excerpt' j.id %}">cauda guardada</a>{% endif %}
+            <td>
+              <div class="flex gap-2 flex-wrap items-center">
+                <button type="button" class="btn-ghost text-xs py-1 whitespace-nowrap"
+                        data-pipeline="{{ pipeline.id }}" data-job="{{ j.id }}"
+                        data-rotulo="Pipeline #{{ pipeline.external_id }} · {{ j.name }}"
+                        onclick="abrirLogsPipeline(this)">
+                  <i class="bi bi-file-text"></i> Ver log
+                </button>
+                <a class="text-slate-400 hover:underline text-xs" target="_blank" rel="noopener"
+                   href="{% url 'ci_job_log' j.id %}">abrir em aba</a>
+                {% if j.log_excerpt %}<a class="text-slate-400 hover:underline text-xs" target="_blank" rel="noopener" href="{% url 'ci_job_excerpt' j.id %}">cauda guardada</a>{% endif %}
+              </div>
             </td>
           </tr>
           {% empty %}
@@ -70,6 +87,8 @@
       informação restrita.
     </p>
   </div>
+
+  {% include "botapp/_ci_log_modal.html" %}
 
 </div>
 {% endblock %}

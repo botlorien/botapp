@@ -154,7 +154,7 @@
           <th class="text-left">#</th><th class="text-left">Status</th>
           <th class="text-left">Origem</th><th class="text-left">Ref</th>
           <th class="text-left">Quando</th><th class="text-left">Duração</th>
-          <th class="text-left">Disparado por</th>
+          <th class="text-left">Disparado por</th><th class="text-left">Ações</th>
         </tr></thead>
         <tbody>
           {% for p in pipelines %}
@@ -171,14 +171,24 @@
             <td>{{ p.created_at|date:"d/m H:i"|default:"—" }}</td>
             <td class="text-slate-400">{{ p.duration|default:"—" }}</td>
             <td class="text-slate-400">{{ p.triggered_by|default:"—" }}</td>
+            <td>
+              <button type="button" class="btn-ghost text-xs py-1 whitespace-nowrap"
+                      data-pipeline="{{ p.id }}"
+                      data-rotulo="Pipeline #{{ p.external_id }} · {{ project.path }}"
+                      onclick="abrirLogsPipeline(this)">
+                <i class="bi bi-file-text"></i> Ver logs
+              </button>
+            </td>
           </tr>
           {% empty %}
-          <tr><td colspan="7" class="text-slate-400 py-4 text-center">Nenhum pipeline sincronizado.</td></tr>
+          <tr><td colspan="8" class="text-slate-400 py-4 text-center">Nenhum pipeline sincronizado.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
   </div>
+
+  {% include "botapp/_ci_log_modal.html" %}
 
 </div>
 {% endblock %}
