@@ -1,0 +1,102 @@
+{% extends "botapp/base.html" %}
+
+{% block title %}Projetos de CI | RPA Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-list-ul text-sky-400"></i> Projetos de CI
+      </h1>
+      <p class="text-slate-400 mt-1">{{ total }} projeto(s) no filtro atual.</p>
+    </div>
+    <a href="{% url 'ci_overview' %}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Visão geral</a>
+  </div>
+
+  <form method="get" class="fx-header p-4 rounded-xl flex flex-wrap items-end gap-3">
+    <div>
+      <label class="fx-label">Buscar caminho</label>
+      <input type="text" name="q" value="{{ q }}" class="fx-input" placeholder="parte do caminho">
+    </div>
+    <div>
+      <label class="fx-label">Status do último pipeline</label>
+      <select name="status" class="fx-select">
+        <option value="">todos</option>
+        <option value="success" {% if status == 'success' %}selected{% endif %}>success</option>
+        <option value="failed" {% if status == 'failed' %}selected{% endif %}>failed</option>
+        <option value="canceled" {% if status == 'canceled' %}selected{% endif %}>canceled</option>
+      </select>
+    </div>
+    <label class="flex items-center gap-2 text-sm text-slate-300">
+      <input type="checkbox" name="monitored" value="1" class="fx-checkbox"
+             {% if request.GET.monitored == '1' %}checked{% endif %}> só monitorados
+    </label>
+    <label class="flex items-center gap-2 text-sm text-slate-300">
+      <input type="checkbox" name="problemas" value="1" class="fx-checkbox"
+             {% if request.GET.problemas == '1' %}checked{% endif %}> só com falha
+    </label>
+    <button class="btn-ghost"><i class="bi bi-funnel"></i> Filtrar</button>
+  </form>
+
+  <div class="fx-header rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="fx-table w-full text-sm">
+        <thead>
+          <tr>
+            <th class="text-left">Projeto</th>
+            <th class="text-left">Bot vinculado</th>
+            <th class="text-left">Último pipeline</th>
+            <th class="text-left">Status</th>
+            <th class="text-center">Monitorado</th>
+            <th class="text-center">Varre log</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in projects %}
+          <tr>
+            <td>
+              <a class="text-sky-400 hover:underline" href="{% url 'ci_project_detail' p.id %}">{{ p.path }}</a>
+              {% if p.last_sync_error %}
+                <i class="bi bi-exclamation-triangle text-amber-400" title="{{ p.last_sync_error }}"></i>
+              {% endif %}
+            </td>
+            <td class="text-slate-400">{{ p.bot.name|default:"—" }}</td>
+            <td>{{ p.last_pipeline_at|date:"d/m/Y H:i"|default:"—" }}</td>
+            <td>
+              {% if p.last_pipeline_status == 'success' %}
+                <span class="text-emerald-400">success</span>
+              {% elif p.last_pipeline_status %}
+                <span class="text-red-400">{{ p.last_pipeline_status }}</span>
+              {% else %}<span class="text-slate-500">—</span>{% endif %}
+            </td>
+            <td class="text-center">
+              {% if p.monitored %}<i class="bi bi-check-circle-fill text-emerald-400"></i>
+              {% else %}<i class="bi bi-dash-circle text-slate-600"></i>{% endif %}
+            </td>
+            <td class="text-center">
+              {% if p.scan_logs %}<i class="bi bi-search text-amber-400" title="detecta verde-que-mente"></i>
+              {% else %}<i class="bi bi-dash text-slate-600"></i>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-slate-400 py-6 text-center">
+            Nenhum projeto sincronizado ainda. Rode <code>manage.py sync_ci --discovery</code>.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+  <div class="fx-pagination flex items-center gap-2 justify-center">
+    {% if page_obj.has_previous %}<a class="btn-ghost" href="?page={{ page_obj.previous_page_number }}&q={{ q }}">anterior</a>{% endif %}
+    <span class="text-slate-400 text-sm">página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}<a class="btn-ghost" href="?page={{ page_obj.next_page_number }}&q={{ q }}">próxima</a>{% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

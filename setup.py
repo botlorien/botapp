@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="botapp",
-    version="0.5.4",
+    version="0.6.0",
     packages=find_packages(),
     include_package_data=True,  # Inclui arquivos de dados especificados no MANIFEST.in
     license="MIT",
@@ -17,6 +17,11 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    extras_require={
+        # só necessário para CIConnection.token_source="db"; o modo recomendado
+        # (token em variável de ambiente) não precisa de nada extra
+        "ci-db-token": ["cryptography>=42"],
+    },
     install_requires=[
         # Faixa ampla: hosts antigos (3.2) continuam funcionando; hosts novos
         # podem rodar 4.2/5.x sem precisar mudar o pacote. Recomendado: >=4.2

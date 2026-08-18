@@ -1,0 +1,90 @@
+{% extends "botapp/base.html" %}
+
+{% block title %}CI | RPA Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-diagram-3 text-sky-400"></i> Integração de CI
+      </h1>
+      <p class="text-slate-400 mt-1">
+        O que o servidor de CI observou — inclusive quando o bot não conseguiu contar nada.
+      </p>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <a href="{% url 'ci_projects' %}" class="btn-ghost">
+        <i class="bi bi-list-ul"></i> Projetos
+      </a>
+      {% if user.is_staff %}
+      <a href="{% url 'ci_connections' %}" class="btn-ghost">
+        <i class="bi bi-plug"></i> Conexões
+      </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="fx-header p-4 rounded-xl">
+      <div class="text-xs uppercase tracking-wide text-slate-400">Monitorados</div>
+      <div class="text-3xl font-bold text-slate-100 mt-1">{{ total_monitorados }}</div>
+    </div>
+    <div class="fx-header p-4 rounded-xl">
+      <div class="text-xs uppercase tracking-wide text-slate-400">Última execução falhou</div>
+      <div class="text-3xl font-bold {% if com_falha %}text-red-400{% else %}text-slate-100{% endif %} mt-1">{{ com_falha }}</div>
+    </div>
+    <div class="fx-header p-4 rounded-xl">
+      <div class="text-xs uppercase tracking-wide text-slate-400">Verde com erro no log</div>
+      <div class="text-3xl font-bold {% if mascarados %}text-amber-400{% else %}text-slate-100{% endif %} mt-1">{{ mascarados }}</div>
+      <div class="text-[11px] text-slate-500 mt-1">pipeline OK e exceção engolida</div>
+    </div>
+    <div class="fx-header p-4 rounded-xl">
+      <div class="text-xs uppercase tracking-wide text-slate-400">Sem execução</div>
+      <div class="text-3xl font-bold text-slate-100 mt-1">{{ sem_execucao }}</div>
+    </div>
+  </div>
+
+  <div class="fx-header rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-700">
+      <h2 class="font-semibold text-slate-100">
+        <i class="bi bi-exclamation-diamond text-amber-400"></i>
+        Rodou no CI e não instrumentou
+      </h2>
+      <p class="text-xs text-slate-400 mt-1">
+        Projetos cuja última execução no CI é mais recente que o último registro do
+        SDK. É o ponto cego que a telemetria sozinha nunca mostra — o bot rodou e
+        não contou.
+      </p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="fx-table w-full text-sm">
+        <thead>
+          <tr>
+            <th class="text-left">Projeto</th>
+            <th class="text-left">Bot</th>
+            <th class="text-left">Último pipeline</th>
+            <th class="text-left">Última task do SDK</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in sem_instrumentacao %}
+          <tr>
+            <td><a class="text-sky-400 hover:underline" href="{% url 'ci_project_detail' p.id %}">{{ p.path }}</a></td>
+            <td>{{ p.bot.name }}</td>
+            <td>{{ p.last_pipeline_at|date:"d/m/Y H:i"|default:"—" }}</td>
+            <td>{{ p.bot.last_execution_at|date:"d/m/Y H:i"|default:"nunca" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="text-slate-400 py-6 text-center">
+            Nenhum caso — todo projeto vinculado instrumentou a última execução.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

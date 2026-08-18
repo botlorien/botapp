@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from . import views
+from . import ci_views
 from . import sso_views
 from django.contrib.auth.views import LoginView
 from django.contrib.auth import views as auth_views
@@ -38,6 +39,26 @@ urlpatterns = [
     path('maintenance/silence-thresholds/', views.silence_thresholds_page, name='silence_thresholds'),
     path('bots/bulk-silence-threshold/', views.bulk_set_silence_threshold, name='bulk_set_silence_threshold'),
     path('explore/', views.explore, name='explore'),
+
+    # ── Integração de CI (só ativa com BOTAPP_CI_ENABLED=true) ─────────────
+    path('ci/', ci_views.ci_overview, name='ci_overview'),
+    path('ci/connections/', ci_views.connection_list, name='ci_connections'),
+    path('ci/connections/<int:connection_id>/test/', ci_views.connection_test,
+         name='ci_connection_test'),
+    path('ci/connections/<int:connection_id>/sync/', ci_views.connection_sync,
+         name='ci_connection_sync'),
+    path('ci/projects/', ci_views.project_list, name='ci_projects'),
+    path('ci/projects/<int:project_id>/', ci_views.project_detail,
+         name='ci_project_detail'),
+    path('ci/projects/<int:project_id>/toggle/', ci_views.project_toggle,
+         name='ci_project_toggle'),
+    path('ci/projects/<int:project_id>/link-bot/', ci_views.project_link_bot,
+         name='ci_project_link_bot'),
+    path('ci/pipelines/<int:pipeline_id>/', ci_views.pipeline_detail,
+         name='ci_pipeline_detail'),
+    path('ci/jobs/<int:job_id>/log/', ci_views.job_log, name='ci_job_log'),
+    path('ci/jobs/<int:job_id>/excerpt/', ci_views.job_log_excerpt,
+         name='ci_job_excerpt'),
     path('explore/export.csv', views.explore_export_csv, name='explore_export_csv'),
     path('accounts/login/', LoginView.as_view(), name='login'),
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),

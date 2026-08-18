@@ -150,9 +150,12 @@ o escopo por departamento (§7), a cauda persistida tem limite de tamanho e pode
 ser desligada por projeto (`scan_logs=False`), e o log completo não é armazenado.
 
 **Privacidade (`triggered_by`).** Guardar quem disparou o pipeline é dado
-pessoal de colaborador. Fica opcional por env (`BOTAPP_CI_STORE_TRIGGERED_BY`,
-default **desligado**) para que a instalação decida — algumas jurisdições tratam
-isso como monitoramento de pessoa, não de sistema.
+pessoal de colaborador, e por isso é controlável por env
+(`BOTAPP_CI_STORE_TRIGGERED_BY`, default **ligado**). Saber quem disparou é o que
+permite distinguir execução agendada de execução manual na hora de investigar um
+incidente — daí o default. Quem opera sob regime que trate isso como
+monitoramento de pessoa (e não de sistema) deve **desligar**: basta
+`BOTAPP_CI_STORE_TRIGGERED_BY=false`, e o campo passa a ser gravado vazio.
 
 **SSRF.** `base_url` é configurável, então o cliente valida esquema (`https`
 por default, `http` só se `BOTAPP_CI_ALLOW_INSECURE=true`) e recusa redirecionar
@@ -262,7 +265,7 @@ apontando para qualquer servidor**:
 | `BOTAPP_CI_ERROR_PATTERNS` | genérico | padrões de erro no log |
 | `BOTAPP_CI_IGNORE_PATTERNS` | vazio | ruídos a ignorar |
 | `BOTAPP_CI_LOG_TAIL_BYTES` | `65536` | tamanho máx. da cauda persistida |
-| `BOTAPP_CI_STORE_TRIGGERED_BY` | `false` | grava quem disparou (dado pessoal) |
+| `BOTAPP_CI_STORE_TRIGGERED_BY` | `true` | grava quem disparou (dado pessoal — ver §5) |
 | `BOTAPP_CI_ALLOW_INSECURE` | `false` | permite `http://` na base_url |
 | `BOTAPP_CI_TIMEOUT_SECONDS` | `30` | timeout por chamada |
 
@@ -276,9 +279,9 @@ apontando para qualquer servidor**:
 | **4** | `scan_logs` + `pipeline_masked_error` + `schedule_without_run` | verde-que-mente e agendamento morto viram alerta |
 | **5** | vínculo com `Bot` + visão unificada + scoping | "rodou no CI e não instrumentou" fica visível |
 
-Cada fase é publicável sozinha. A 1 e a 2 já entregam o inventário e o
-acompanhamento; a 4 é a que resolve a classe de problema mais difícil de achar
-por outros meios.
+Cada fase é publicável sozinha, mas a **decisão foi publicar as cinco de uma
+vez**, numa release `0.6.0`. A 1 e a 2 entregam inventário e acompanhamento; a 4
+resolve a classe de problema mais difícil de achar por outros meios.
 
 ## 11. Testes
 

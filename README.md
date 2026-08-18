@@ -621,6 +621,81 @@ python -c "from setuptools import find_packages; print(find_packages())"
 
 ---
 
+## Integração com CI (GitLab)
+
+A partir da 0.6.0 o painel também lê o **servidor de CI**, e não só o que o bot
+conta sobre si mesmo. Isso cobre três pontos cegos da instrumentação:
+
+1. **Bot que morre antes de instrumentar** — falha de credencial, dependência
+   ausente, imagem quebrada: o SDK nunca é chamado e o painel não mostra nada.
+2. **Bot que nunca instrumentou** — sem o SDK configurado, ele roda, falha e
+   ninguém vê.
+3. **Verde que mente** — pipeline com status de sucesso cujo log tem
+   `Traceback`: a exceção foi engolida e o processo saiu com código 0.
+
+A feature nasce **desligada**. Para ligar, no mínimo:
+
+```bash
+BOTAPP_CI_ENABLED=true
+BOTAPP_CI_BASE_URL=https://seu-gitlab            # sem default de propósito
+BOTAPP_CI_NAMESPACE=seu-grupo                     # path ou id numérico
+BOTAPP_CI_TOKEN=<token de LEITURA>
+```
+
+```bash
+python manage.py sync_ci --bootstrap --discovery   # cria a conexão e descobre
+python manage.py run_ci_scheduler                  # loop (container separado)
+```
+
+As telas ficam em `/ci/` (visão geral), `/ci/projects/` e `/ci/connections/`.
+
+### Segurança do token
+
+O token de leitura de API dá acesso a **código-fonte e logs de build** de todo o
+namespace. Recomendações que o próprio código impõe:
+
+- use um token de **grupo/serviço somente-leitura**, nunca um token pessoal de
+  administrador;
+- por padrão o token **não vai para o banco**: o registro guarda só o *nome* da
+  variável de ambiente (`token_source="env"`), então um dump de backup não
+  contém credencial;
+- o modo `token_source="db"` exige `BOTAPP_CI_TOKEN_KEY` (Fernet, extra
+  `pip install "botapp[ci-db-token]"`) e é **recusado** sem a chave, em vez de
+  gravar em texto puro;
+- a tela mostra no máximo uma *impressão digital* do token; a API nunca o
+  serializa; o cliente HTTP mascara o valor em qualquer mensagem de erro;
+- o log de job é **proxeado pelo servidor** — o navegador nunca recebe o token —
+  e servido como `text/plain` com `nosniff`, porque log é conteúdo não confiável.
+
+### Variáveis
+
+| variável | default | função |
+|---|---|---|
+| `BOTAPP_CI_ENABLED` | `false` | liga a integração |
+| `BOTAPP_CI_BASE_URL` | — | URL do servidor de CI |
+| `BOTAPP_CI_NAMESPACE` | — | grupo/organização a sincronizar |
+| `BOTAPP_CI_TOKEN` | — | token de leitura |
+| `BOTAPP_CI_TOKEN_KEY` | — | chave Fernet (só p/ `token_source="db"`) |
+| `BOTAPP_CI_DISCOVERY_INTERVAL_MINUTES` | `1440` | refresh de projetos/agendamentos |
+| `BOTAPP_CI_POLL_INTERVAL_MINUTES` | `15` | busca de pipelines |
+| `BOTAPP_CI_ERROR_PATTERNS` | `Traceback (most recent call last)`, `CRITICAL`, `FATAL` | padrões de erro no log (separados por `\|`) |
+| `BOTAPP_CI_IGNORE_PATTERNS` | vazio | ruídos a ignorar antes de casar padrão |
+| `BOTAPP_CI_LOG_TAIL_BYTES` | `65536` | tamanho máx. da cauda persistida |
+| `BOTAPP_CI_STORE_TRIGGERED_BY` | `true` | grava quem disparou o pipeline (**dado pessoal** — desligue se o seu regime tratar isso como monitoramento de pessoa) |
+| `BOTAPP_CI_ALLOW_INSECURE` | `false` | permite `http://` na base_url |
+| `BOTAPP_CI_TIMEOUT_SECONDS` | `30` | timeout por chamada |
+
+### Detecção de "verde que mente"
+
+É **opt-in por projeto** (`scan_logs`), porque custa uma chamada de log por job
+bem-sucedido — ligar para tudo multiplica o tráfego. Quando liga, use
+`BOTAPP_CI_IGNORE_PATTERNS` para os ruídos conhecidos da sua stack; sem isso a
+detecção vira alarme constante e alguém a desliga.
+
+Detalhes de arquitetura em [`docs/ci-integration-design.md`](docs/ci-integration-design.md).
+
+---
+
 ## Licença
 
 MIT — ver [LICENSE](LICENSE).

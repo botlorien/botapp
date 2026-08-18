@@ -1,0 +1,88 @@
+{% extends "botapp/base.html" %}
+
+{% block title %}Conexões de CI | RPA Monitor{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-plug text-sky-400"></i> Conexões de CI
+      </h1>
+      <p class="text-slate-400 mt-1 text-sm">
+        Cadastro em <a class="text-sky-400 hover:underline" href="{% url 'admin:botapp_ciconnection_changelist' %}">Admin › Conexões de CI</a>,
+        ou por variável de ambiente com <code>manage.py sync_ci --bootstrap</code>.
+      </p>
+    </div>
+    <a href="{% url 'ci_overview' %}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Visão geral</a>
+  </div>
+
+  <div class="fx-header rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="fx-table w-full text-sm">
+        <thead><tr>
+          <th class="text-left">Nome</th><th class="text-left">Servidor</th>
+          <th class="text-left">Namespace</th><th class="text-left">Token</th>
+          <th class="text-left">Último sync</th><th class="text-left">Ações</th>
+        </tr></thead>
+        <tbody>
+          {% for c in connections %}
+          <tr>
+            <td>{{ c.name }} {% if not c.enabled %}<span class="text-slate-500">(desabilitada)</span>{% endif %}</td>
+            <td class="text-slate-400">{{ c.base_url }}</td>
+            <td class="text-slate-400">{{ c.namespace }}</td>
+            <td>
+              {% if c.token_fingerprint %}
+                <code class="text-xs text-slate-400" title="impressão digital do token — o valor nunca é exibido">{{ c.token_fingerprint }}</code>
+              {% else %}
+                <span class="text-xs text-red-400" title="token ausente ou ilegível">indisponível</span>
+              {% endif %}
+              <div class="text-xs text-slate-500">{{ c.get_token_source_display }}</div>
+            </td>
+            <td>
+              {% if c.last_sync_status == 'ok' %}<span class="text-emerald-400">ok</span>
+              {% elif c.last_sync_status == 'error' %}<span class="text-red-400" title="{{ c.last_sync_error }}">erro</span>
+              {% else %}<span class="text-slate-500">nunca</span>{% endif %}
+              <span class="text-slate-400 text-xs">{{ c.last_sync_at|date:"d/m H:i" }}</span>
+            </td>
+            <td class="flex gap-2">
+              <button class="btn-ghost text-xs" onclick="acao('{% url 'ci_connection_test' c.id %}', this)">testar</button>
+              <button class="btn-ghost text-xs" onclick="acao('{% url 'ci_connection_sync' c.id %}', this)">sincronizar</button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-slate-400 py-6 text-center">
+            Nenhuma conexão cadastrada.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <pre id="saida" class="fx-header rounded-xl p-4 text-xs text-slate-300 whitespace-pre-wrap hidden"></pre>
+</div>
+
+{% block extrascripts %}
+<script>
+function acao(url, botao) {
+  const saida = document.getElementById('saida');
+  saida.classList.remove('hidden');
+  saida.textContent = 'executando...';
+  botao.disabled = true;
+  fetch(url, {method: 'POST', headers: {'X-CSRFToken': getCookie('csrftoken')}})
+    .then(r => r.json())
+    .then(d => { saida.textContent = JSON.stringify(d, null, 2); })
+    .catch(e => { saida.textContent = 'falhou: ' + e; })
+    .finally(() => { botao.disabled = false; });
+}
+function getCookie(nome) {
+  return document.cookie.split('; ').reduce((r, v) => {
+    const [k, val] = v.split('=');
+    return k === nome ? decodeURIComponent(val) : r;
+  }, '');
+}
+</script>
+{% endblock %}
+{% endblock %}

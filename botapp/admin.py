@@ -178,3 +178,61 @@ class TaskLogAdmin(admin.ModelAdmin):
     def get_bot_department(self, obj):
         return obj.task.bot.department
     get_bot_department.short_description = "Departamento"
+
+
+# ── Integração de CI ───────────────────────────────────────────────────────
+from .models import CIConnection, CIJob, CIPipeline, CIProject, CISchedule  # noqa: E402
+
+
+@admin.register(CIConnection)
+class CIConnectionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'kind', 'base_url', 'namespace', 'enabled',
+                    'last_sync_status', 'last_sync_at')
+    list_filter = ('kind', 'enabled', 'last_sync_status')
+    search_fields = ('name', 'base_url', 'namespace')
+    # token_encrypted fica FORA de qualquer formulário: o valor não deve ser
+    # legível nem editável pela UI. Ver docs/ci-integration-design.md §5.
+    exclude = ('token_encrypted',)
+    readonly_fields = ('last_discovery_at', 'last_sync_at', 'last_sync_status',
+                       'last_sync_error', 'created_at', 'updated_at')
+
+
+@admin.register(CIProject)
+class CIProjectAdmin(admin.ModelAdmin):
+    list_display = ('path', 'connection', 'monitored', 'scan_logs', 'bot',
+                    'last_pipeline_status', 'last_pipeline_at', 'archived')
+    list_filter = ('connection', 'monitored', 'scan_logs', 'archived',
+                   'last_pipeline_status')
+    search_fields = ('path', 'name')
+    list_select_related = ('connection', 'bot')
+    autocomplete_fields = ('bot',)
+    readonly_fields = ('external_id', 'pipelines_cursor', 'last_pipeline_at',
+                       'last_pipeline_status', 'last_pipeline_external_id',
+                       'last_sync_error')
+
+
+@admin.register(CISchedule)
+class CIScheduleAdmin(admin.ModelAdmin):
+    list_display = ('project', 'cron', 'cron_timezone', 'active', 'next_run_at')
+    list_filter = ('active',)
+    search_fields = ('project__path', 'description')
+    list_select_related = ('project',)
+
+
+@admin.register(CIPipeline)
+class CIPipelineAdmin(admin.ModelAdmin):
+    list_display = ('external_id', 'project', 'status', 'source',
+                    'has_masked_error', 'created_at', 'duration')
+    list_filter = ('status', 'source', 'has_masked_error')
+    search_fields = ('project__path', 'ref', 'sha')
+    list_select_related = ('project',)
+    date_hierarchy = 'created_at'
+
+
+@admin.register(CIJob)
+class CIJobAdmin(admin.ModelAdmin):
+    list_display = ('name', 'pipeline', 'status', 'stage', 'runner_description',
+                    'duration')
+    list_filter = ('status', 'stage')
+    search_fields = ('name', 'pipeline__project__path')
+    list_select_related = ('pipeline', 'pipeline__project')

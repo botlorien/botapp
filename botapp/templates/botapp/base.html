@@ -302,6 +302,11 @@
           <a href="{% url 'explore' %}"  class="fx-nav-link {% if request.resolver_match.url_name == 'explore' %}active{% endif %}">
             <i class="bi bi-table"></i><span class="hidden md:inline">Explorador</span>
           </a>
+          {% if ci_enabled %}
+          <a href="{% url 'ci_overview' %}" class="fx-nav-link {% if request.resolver_match.url_name|slice:':3' == 'ci_' %}active{% endif %}">
+            <i class="bi bi-diagram-3"></i><span class="hidden md:inline">CI</span>
+          </a>
+          {% endif %}
           <a href="{% url 'alert_list' %}" class="fx-nav-link relative {% if request.resolver_match.url_name == 'alert_list' %}active{% endif %}">
             <i class="bi bi-bell-fill"></i><span class="hidden md:inline">Alertas</span>
             <span id="alerts-badge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold items-center justify-center shadow-lg shadow-red-500/50">0</span>

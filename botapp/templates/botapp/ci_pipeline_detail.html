@@ -1,0 +1,77 @@
+{% extends "botapp/base.html" %}
+
+{% block title %}Pipeline {{ pipeline.external_id }} | CI{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <div class="flex items-end justify-between flex-wrap gap-4">
+    <div>
+      <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-slate-100">
+        <i class="bi bi-play-circle text-sky-400"></i> Pipeline #{{ pipeline.external_id }}
+      </h1>
+      <p class="text-slate-400 mt-1 text-sm">
+        {{ pipeline.project.path }} · {{ pipeline.source|default:"origem desconhecida" }} · {{ pipeline.ref }}
+      </p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      {% if pipeline.web_url %}<a href="{{ pipeline.web_url }}" target="_blank" rel="noopener" class="btn-ghost"><i class="bi bi-box-arrow-up-right"></i> Abrir no CI</a>{% endif %}
+      <a href="{% url 'ci_project_detail' pipeline.project.id %}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Projeto</a>
+    </div>
+  </div>
+
+  {% if pipeline.has_masked_error %}
+  <div class="fx-header rounded-xl p-4 border-l-4 border-amber-500">
+    <div class="text-sm text-amber-300 font-semibold">
+      <i class="bi bi-exclamation-triangle-fill"></i> Verde com erro no log
+    </div>
+    <p class="text-xs text-slate-300 mt-1">
+      O pipeline terminou com sucesso, mas o log contém padrão de erro: a exceção
+      foi engolida e o processo saiu com código 0. O status do CI diz OK; o
+      trabalho pode não ter acontecido.
+    </p>
+  </div>
+  {% endif %}
+
+  <div class="fx-header rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-700">
+      <h2 class="font-semibold text-slate-100"><i class="bi bi-cpu"></i> Jobs</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="fx-table w-full text-sm">
+        <thead><tr>
+          <th class="text-left">Job</th><th class="text-left">Stage</th>
+          <th class="text-left">Status</th><th class="text-left">Runner</th>
+          <th class="text-left">Duração</th><th class="text-left">Log</th>
+        </tr></thead>
+        <tbody>
+          {% for j in jobs %}
+          <tr>
+            <td>
+              {{ j.name }}
+              {% if j.matched_pattern %}<span class="text-amber-400 text-xs" title="padrão encontrado">({{ j.matched_pattern }})</span>{% endif %}
+            </td>
+            <td class="text-slate-400">{{ j.stage|default:"—" }}</td>
+            <td>{% if j.status == 'success' %}<span class="text-emerald-400">success</span>{% else %}<span class="text-red-400">{{ j.status }}</span>{% endif %}</td>
+            <td class="text-slate-400">{{ j.runner_description|default:"—" }}</td>
+            <td class="text-slate-400">{{ j.duration|default:"—" }}</td>
+            <td class="flex gap-2">
+              <a class="text-sky-400 hover:underline" target="_blank" rel="noopener" href="{% url 'ci_job_log' j.id %}">completo</a>
+              {% if j.log_excerpt %}<a class="text-slate-400 hover:underline" target="_blank" rel="noopener" href="{% url 'ci_job_excerpt' j.id %}">cauda guardada</a>{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-slate-400 py-4 text-center">Nenhum job.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="px-4 py-3 text-xs text-slate-500 border-t border-slate-700">
+      O log é buscado no servidor de CI a cada abertura — o token nunca vai para o
+      navegador. Log de build pode conter segredo impresso por script; o acesso
+      exige login e respeita o escopo por departamento.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

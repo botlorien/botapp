@@ -124,6 +124,11 @@ class Alert(models.Model):
         ERROR_SPIKE = 'error_spike', 'Pico de erros'
         HEARTBEAT_LOST = 'heartbeat_lost', 'Heartbeat perdido'
         DURATION_REGRESSION = 'duration_regression', 'Regressão de duração'
+        # vindos da integração de CI (ver docs/ci-integration-design.md §7)
+        PIPELINE_FAILED = 'pipeline_failed', 'Pipeline falhou'
+        PIPELINE_MASKED_ERROR = 'pipeline_masked_error', 'Pipeline verde com erro no log'
+        SCHEDULE_WITHOUT_RUN = 'schedule_without_run', 'Agendamento ativo sem execução'
+        PROJECT_NEVER_RAN = 'project_never_ran', 'Projeto monitorado sem execução'
 
     class Severity(models.TextChoices):
         LOW = 'low', 'Baixa'
@@ -176,3 +181,227 @@ class Alert(models.Model):
     @property
     def is_active(self):
         return self.resolved_at is None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Integração com servidor de CI (ver docs/ci-integration-design.md)
+#
+# Estes modelos existem para cobrir o que o SDK não consegue contar: bot que
+# morre antes de instrumentar, bot que nunca instrumentou, e pipeline verde cujo
+# log tem erro. Tudo GENÉRICO — nenhum default aponta para servidor, grupo ou
+# projeto de qualquer organização.
+# ═══════════════════════════════════════════════════════════════════════════
+
+class CIConnection(models.Model):
+    """Um servidor de CI + namespace a sincronizar.
+
+    O token NÃO fica aqui por padrão: `token_source='env'` guarda apenas o NOME
+    da variável de ambiente. Ver o §5 do desenho para o porquê.
+    """
+
+    class Kind(models.TextChoices):
+        GITLAB = 'gitlab', 'GitLab'
+
+    class TokenSource(models.TextChoices):
+        ENV = 'env', 'Variável de ambiente (recomendado)'
+        DB = 'db', 'Cifrado no banco'
+
+    class SyncStatus(models.TextChoices):
+        OK = 'ok', 'OK'
+        ERROR = 'error', 'Erro'
+        NEVER = 'never', 'Nunca sincronizado'
+
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.GITLAB)
+    name = models.CharField(max_length=100, unique=True)
+    base_url = models.URLField(
+        help_text='URL do servidor de CI. Sem default de propósito.')
+    namespace = models.CharField(
+        max_length=255,
+        help_text='Grupo/organização a sincronizar (path ou id numérico).')
+
+    token_source = models.CharField(max_length=10, choices=TokenSource.choices,
+                                    default=TokenSource.ENV)
+    token_env_var = models.CharField(
+        max_length=100, blank=True, default='BOTAPP_CI_TOKEN',
+        help_text='Nome da env var com o token (quando a fonte é ambiente).')
+    token_encrypted = models.BinaryField(
+        null=True, blank=True, editable=False,
+        help_text='Só usado quando a fonte é banco; exige BOTAPP_CI_TOKEN_KEY.')
+
+    enabled = models.BooleanField(default=True, db_index=True)
+    discovery_interval_minutes = models.PositiveIntegerField(default=1440)
+    poll_interval_minutes = models.PositiveIntegerField(default=15)
+
+    last_discovery_at = models.DateTimeField(null=True, blank=True)
+    last_sync_at = models.DateTimeField(null=True, blank=True)
+    last_sync_status = models.CharField(max_length=10, choices=SyncStatus.choices,
+                                        default=SyncStatus.NEVER)
+    last_sync_error = models.TextField(blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = 'botapp'
+        verbose_name = 'Conexão de CI'
+        verbose_name_plural = 'Conexões de CI'
+
+    def __str__(self):
+        return f'{self.name} ({self.get_kind_display()})'
+
+    @property
+    def token_fingerprint(self):
+        """Identifica o token sem revelá-lo — para a tela e para diagnóstico."""
+        from .ci_client import resolve_token, fingerprint
+        try:
+            return fingerprint(resolve_token(self))
+        except Exception:
+            return ''
+
+
+class CIProject(models.Model):
+    connection = models.ForeignKey(CIConnection, on_delete=models.CASCADE,
+                                   related_name='projects')
+    external_id = models.BigIntegerField(db_index=True)
+    path = models.CharField(max_length=255, db_index=True)
+    name = models.CharField(max_length=255)
+    web_url = models.URLField(blank=True, default='')
+    default_branch = models.CharField(max_length=255, blank=True, default='')
+    archived = models.BooleanField(default=False)
+
+    monitored = models.BooleanField(
+        default=True, db_index=True,
+        help_text='Projeto monitorado tem pipelines sincronizados.')
+    scan_logs = models.BooleanField(
+        default=False,
+        help_text='Procura padrão de erro no log de pipeline BEM-SUCEDIDO '
+                  '(detecta "verde que mente"). Custa uma chamada por job.')
+    bot = models.ForeignKey(
+        Bot, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='ci_projects',
+        help_text='Vínculo com o bot instrumentado pelo SDK, quando houver.')
+
+    # cursor do sync incremental — sem ele cada ciclo relê a história inteira
+    pipelines_cursor = models.DateTimeField(null=True, blank=True)
+    last_sync_error = models.TextField(blank=True, default='')
+
+    # denormalização p/ a listagem não fazer subquery por linha
+    last_pipeline_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    last_pipeline_status = models.CharField(max_length=20, blank=True, default='',
+                                           db_index=True)
+    last_pipeline_external_id = models.BigIntegerField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = 'botapp'
+        verbose_name = 'Projeto de CI'
+        verbose_name_plural = 'Projetos de CI'
+        unique_together = [('connection', 'external_id')]
+        indexes = [
+            models.Index(fields=['monitored', '-last_pipeline_at'],
+                         name='ciproj_mon_last_idx'),
+        ]
+
+    def __str__(self):
+        return self.path
+
+
+class CISchedule(models.Model):
+    project = models.ForeignKey(CIProject, on_delete=models.CASCADE,
+                               related_name='schedules')
+    external_id = models.BigIntegerField()
+    description = models.CharField(max_length=255, blank=True, default='')
+    cron = models.CharField(max_length=100, blank=True, default='')
+    cron_timezone = models.CharField(max_length=64, blank=True, default='')
+    active = models.BooleanField(default=True, db_index=True)
+    next_run_at = models.DateTimeField(null=True, blank=True)
+    # um agendamento ativo cujo último pipeline é antigo (ou inexistente) é o
+    # sintoma de "agendamento que não dispara" — ver alerta schedule_without_run
+    last_pipeline_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = 'botapp'
+        verbose_name = 'Agendamento de CI'
+        verbose_name_plural = 'Agendamentos de CI'
+        unique_together = [('project', 'external_id')]
+
+    def __str__(self):
+        return f'{self.project.path} · {self.cron}'
+
+
+class CIPipeline(models.Model):
+    project = models.ForeignKey(CIProject, on_delete=models.CASCADE,
+                               related_name='pipelines')
+    external_id = models.BigIntegerField(db_index=True)
+    iid = models.BigIntegerField(null=True, blank=True)
+    status = models.CharField(max_length=20, db_index=True)
+    source = models.CharField(max_length=40, blank=True, default='', db_index=True)
+    ref = models.CharField(max_length=255, blank=True, default='')
+    sha = models.CharField(max_length=64, blank=True, default='')
+    commit_title = models.CharField(max_length=255, blank=True, default='')
+    web_url = models.URLField(blank=True, default='')
+    schedule = models.ForeignKey(CISchedule, on_delete=models.SET_NULL, null=True,
+                                blank=True, related_name='pipelines')
+    # dado pessoal: controlado por BOTAPP_CI_STORE_TRIGGERED_BY (default ligado)
+    triggered_by = models.CharField(max_length=150, blank=True, default='')
+
+    created_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    duration = models.DurationField(null=True, blank=True)
+
+    # resultado da varredura de log em pipeline verde (§6.3 do desenho)
+    log_scanned_at = models.DateTimeField(null=True, blank=True)
+    has_masked_error = models.BooleanField(default=False, db_index=True)
+
+    synced_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        app_label = 'botapp'
+        verbose_name = 'Pipeline'
+        verbose_name_plural = 'Pipelines'
+        unique_together = [('project', 'external_id')]
+        indexes = [
+            models.Index(fields=['-created_at'], name='cipipe_created_desc_idx'),
+            models.Index(fields=['project', '-created_at'], name='cipipe_proj_created_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.project.path} #{self.external_id} ({self.status})'
+
+    @property
+    def is_failure(self):
+        return self.status in ('failed', 'canceled')
+
+
+class CIJob(models.Model):
+    pipeline = models.ForeignKey(CIPipeline, on_delete=models.CASCADE,
+                                related_name='jobs')
+    external_id = models.BigIntegerField(db_index=True)
+    name = models.CharField(max_length=255, blank=True, default='')
+    stage = models.CharField(max_length=100, blank=True, default='')
+    status = models.CharField(max_length=20, db_index=True)
+    runner_description = models.CharField(max_length=255, blank=True, default='')
+    failure_reason = models.CharField(max_length=100, blank=True, default='')
+    web_url = models.URLField(blank=True, default='')
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    duration = models.DurationField(null=True, blank=True)
+
+    # SÓ a cauda, SÓ em falha/suspeita, com limite de bytes. O log completo não é
+    # persistido: trace de CI passa de 1 MB com facilidade (§4 do desenho).
+    log_excerpt = models.TextField(blank=True, default='')
+    log_excerpt_at = models.DateTimeField(null=True, blank=True)
+    matched_pattern = models.CharField(max_length=255, blank=True, default='')
+
+    class Meta:
+        app_label = 'botapp'
+        verbose_name = 'Job de CI'
+        verbose_name_plural = 'Jobs de CI'
+        unique_together = [('pipeline', 'external_id')]
+
+    def __str__(self):
+        return f'{self.name} ({self.status})'
