@@ -9,6 +9,7 @@ import logging
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.http import Http404, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -213,8 +214,23 @@ def bind_from_bot(request, bot_id):
     if not scoping.bot_no_escopo(request, bot):
         raise Http404
     project_id = (request.POST.get('project_id') or '').strip()
+    caminho = (request.POST.get('project_path') or '').strip()
+
+    projeto = None
     if project_id:
         projeto = get_object_or_404(CIProject, id=project_id)
+    elif caminho:
+        # o campo pesquisável envia o CAMINHO; aceita também o final dele, para
+        # quem digitou sem o namespace
+        projeto = (CIProject.objects.filter(path__iexact=caminho).first()
+                   or CIProject.objects.filter(path__iendswith=f'/{caminho}').first())
+        if projeto is None:
+            messages.error(request,
+                           f'Projeto de CI não encontrado: “{caminho}”. '
+                           f'Escolha um item da lista.')
+            return redirect('bot_detail', bot_id=bot.id)
+
+    if projeto is not None:
         projeto.bot = bot
         projeto.save(update_fields=['bot'])
     return redirect('bot_detail', bot_id=bot.id)

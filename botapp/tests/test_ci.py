@@ -603,6 +603,51 @@ class TestRedacaoDeSegredos(TestCase):
         self.assertNotIn('s3nh4forte', r)
 
 
+class TestSugestaoDeVinculo(TestCase):
+    """A sugestão precisa acertar os casos reais, não só os fáceis."""
+
+    class _Fake:
+        def __init__(self, path, id=0):
+            self.path = path
+            self.id = id
+
+    def _sugerir(self, nome_bot, caminhos):
+        from botapp.views import _sugerir_projetos_ci
+        projetos = [self._Fake(c, i) for i, c in enumerate(caminhos)]
+        sugeridos, _ = _sugerir_projetos_ci(nome_bot, projetos)
+        return [p.path for p in sugeridos]
+
+    def test_nome_com_espacos_casa_com_caminho_com_underscore(self):
+        """Caso real da tela: 'Bot atualiza painel led'."""
+        r = self._sugerir('Bot atualiza painel led', [
+            'exemplo-grupo/bot_atualiza_painel_led',
+            'exemplo-grupo/bot_atualiza_painel_led_v2',
+            'exemplo-grupo/bot_exporta_planilha',
+            'exemplo-grupo/infra-proxy',
+        ])
+        self.assertIn('exemplo-grupo/bot_atualiza_painel_led', r[:2])
+
+    def test_ordena_o_mais_parecido_primeiro(self):
+        r = self._sugerir('Bot coleta encaminhada alfa', [
+            'exemplo-grupo/Bot_coleta_encaminhada_alfa',
+            'exemplo-grupo/bot_coleta_encaminhada_beta',
+            'exemplo-grupo/infra-armazenamento',
+        ])
+        self.assertEqual(r[0], 'exemplo-grupo/Bot_coleta_encaminhada_alfa')
+
+    def test_nao_sugere_o_que_nao_tem_relacao(self):
+        r = self._sugerir('Bot atualiza painel led',
+                          ['exemplo-grupo/infra-proxy', 'exemplo-grupo/infra-armazenamento'])
+        self.assertEqual(r, [], f'sugeriu sem semelhança: {r}')
+
+    def test_projeto_sem_prefixo_bot_tambem_casa(self):
+        r = self._sugerir('Sync sistema externo', [
+            'exemplo-grupo/bot_integra_sistema_externo',
+            'exemplo-grupo/infra-painel',
+        ])
+        self.assertIn('exemplo-grupo/bot_integra_sistema_externo', r)
+
+
 class TestSemVazamento(TestCase):
     """O pacote é público: o código não pode citar organização nem credencial."""
 

@@ -131,6 +131,51 @@ def bot_list(request):
         "ninety_days_ago_iso": (today - timedelta(days=90)).isoformat(),
     })
 
+def _normalizar_nome(texto):
+    """Reduz nome de bot e caminho de projeto a um denominador comum.
+
+    "Bot atualiza painel led" e "exemplo-grupo/bot_atualiza_painel_led" precisam
+    virar a mesma coisa para poderem ser comparados.
+    """
+    import re
+    texto = (texto or '').lower().rsplit('/', 1)[-1]
+    return re.sub(r'[^a-z0-9]+', ' ', texto).strip()
+
+
+def _sugerir_projetos_ci(nome_bot, projetos, limite=6):
+    """Ordena projetos por semelhança com o nome do bot.
+
+    Combina duas medidas: proporção de palavras em comum (pega
+    "atualiza painel led" dentro de "bot_atualiza_painel_led_v2") e similaridade
+    de sequência (tolera plural, typo e ordem trocada). A sugestão só ORDENA —
+    quem confirma é a pessoa, porque vincular ao repositório errado atribuiria
+    telemetria ao bot errado.
+    """
+    from difflib import SequenceMatcher
+
+    alvo = _normalizar_nome(nome_bot)
+    palavras_alvo = {p for p in alvo.split() if len(p) > 2 and p != 'bot'}
+
+    pontuados = []
+    for projeto in projetos:
+        caminho = _normalizar_nome(projeto.path)
+        palavras = {p for p in caminho.split() if len(p) > 2 and p != 'bot'}
+        if palavras_alvo:
+            comuns = len(palavras_alvo & palavras) / len(palavras_alvo)
+        else:
+            comuns = 0.0
+        sequencia = SequenceMatcher(None, alvo, caminho).ratio()
+        pontuados.append((0.65 * comuns + 0.35 * sequencia, projeto))
+
+    pontuados.sort(key=lambda x: (-x[0], x[1].path))
+    # só entra como "sugerido" o que tem semelhança real; o resto vai para a
+    # lista completa, que segue pesquisável
+    sugeridos = [p for nota, p in pontuados[:limite] if nota >= 0.34]
+    ids = {p.id for p in sugeridos}
+    outros = [p for _, p in pontuados if p.id not in ids]
+    return sugeridos, outros
+
+
 @login_required
 def bot_detail(request, bot_id):
     bot = get_object_or_404(Bot, id=bot_id)
@@ -160,18 +205,17 @@ def bot_detail(request, bot_id):
     if _ci_on():
         from .models import CIProject
         vinculados = CIProject.objects.filter(bot=bot).select_related('connection')
-        candidatos = []
+        candidatos, restantes = [], []
         if not vinculados.exists():
-            # sugere por semelhança de nome, mas NÃO vincula sozinho: casar por
-            # heurística e errar atribuiria telemetria ao bot errado
-            alvo = bot.name.lower().replace(' ', '_')
-            candidatos = list(CIProject.objects.filter(bot__isnull=True)
-                              .filter(path__icontains=alvo.split('_')[0])[:8])
+            livres = list(CIProject.objects.filter(
+                bot__isnull=True, archived=False, local_archived=False
+            ).order_by('path'))
+            candidatos, restantes = _sugerir_projetos_ci(bot.name, livres)
         contexto_ci = {
             'ci_enabled': True,
             'ci_projects': vinculados,
             'ci_candidatos': candidatos,
-            'ci_todos': CIProject.objects.filter(bot__isnull=True).order_by('path')[:500],
+            'ci_todos': restantes,
         }
 
     return render(request, 'botapp/bot_detail.html', {

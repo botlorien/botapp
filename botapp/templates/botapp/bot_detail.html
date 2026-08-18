@@ -92,26 +92,42 @@
           {% endfor %}
         </ul>
         {% else %}
+        {% if ci_candidatos %}
+        <div class="mt-3">
+          <div class="fx-label mb-1">Sugestões por semelhança de nome</div>
+          <div class="flex flex-wrap gap-2">
+            {% for c in ci_candidatos %}
+            <form method="post" action="{% url 'ci_bind_from_bot' bot.id %}">
+              {% csrf_token %}
+              <input type="hidden" name="project_id" value="{{ c.id }}">
+              <button class="btn-ghost text-xs py-1" title="vincular a {{ c.path }}">
+                <i class="bi bi-link-45deg"></i> {{ c.path }}
+              </button>
+            </form>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
         <form method="post" action="{% url 'ci_bind_from_bot' bot.id %}" class="mt-3 flex items-end gap-2 flex-wrap">
           {% csrf_token %}
-          <div class="min-w-[16rem]">
-            <label class="fx-label">Escolher projeto</label>
-            <select name="project_id" class="fx-select w-full">
-              <option value="">— selecione —</option>
-              {% for c in ci_candidatos %}
-              <option value="{{ c.id }}">{{ c.path }} (sugerido)</option>
-              {% endfor %}
-              {% for c in ci_todos %}
-              <option value="{{ c.id }}">{{ c.path }}</option>
-              {% endfor %}
-            </select>
+          <div class="min-w-[22rem]">
+            <label class="fx-label">Ou buscar pelo caminho</label>
+            {# input+datalist: pesquisável ao digitar, sem depender de lib externa #}
+            <input list="ci-projetos-{{ bot.id }}" name="project_path"
+                   class="fx-input w-full" autocomplete="off"
+                   placeholder="digite parte do caminho, ex.: update_led">
+            <datalist id="ci-projetos-{{ bot.id }}">
+              {% for c in ci_candidatos %}<option value="{{ c.path }}">sugerido</option>{% endfor %}
+              {% for c in ci_todos %}<option value="{{ c.path }}"></option>{% endfor %}
+            </datalist>
           </div>
           <button class="btn-primary text-xs py-2"><i class="bi bi-link-45deg"></i> Vincular</button>
         </form>
         <p class="text-xs text-slate-500 mt-2">
-          As opções marcadas como sugeridas vêm de semelhança de nome — a
-          confirmação é sua de propósito: vincular ao repositório errado
-          atribuiria telemetria ao bot errado.
+          A sugestão apenas ORDENA por semelhança — quem confirma é você, de
+          propósito: vincular ao repositório errado atribuiria telemetria ao bot
+          errado.
         </p>
         {% endif %}
       </div>
