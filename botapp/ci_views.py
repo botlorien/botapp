@@ -6,6 +6,7 @@ conteúdo. Ver docs/ci-integration-design.md §5 e §8.
 """
 import logging
 
+from django.db.models import Q
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.http import Http404, HttpResponse, JsonResponse, StreamingHttpResponse
@@ -366,6 +367,18 @@ def ci_overview(request):
         request,
         CIProject.objects.select_related('bot').filter(monitored=True))
 
+    # Padrão da tela é só o que está ativo: projeto arquivado nem chega a ser
+    # sincronizado, então contá-lo aqui infla o número e sugere cobrança de
+    # algo que ninguém vai olhar. Mesma convenção da tela de bots: chave
+    # ausente = padrão, chave vazia = "todos".
+    situacao = request.GET.get('situacao', 'ativos')
+    ativo = (Q(archived=False) & Q(local_archived=False)
+             & (Q(bot__isnull=True) | Q(bot__is_active=True)))
+    if situacao == 'ativos':
+        qs = qs.filter(ativo)
+    elif situacao == 'inativos':
+        qs = qs.exclude(ativo)
+
     sem_instrumentacao = []
     for projeto in qs.exclude(last_pipeline_at=None)[:500]:
         if projeto.bot_id is None:
@@ -383,5 +396,6 @@ def ci_overview(request):
         'mascarados': CIPipeline.objects.filter(
             project__in=qs, has_masked_error=True).count(),
         'sem_instrumentacao': sem_instrumentacao[:50],
+        'situacao': situacao,
         'agora': timezone.now(),
     })

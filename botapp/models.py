@@ -327,6 +327,21 @@ class CIProject(models.Model):
         """Arquivado no servidor de CI ou arquivado localmente."""
         return self.archived or self.local_archived
 
+    @property
+    def motivo_inatividade(self):
+        """Por que o projeto conta como inativo — vazio quando está ativo.
+
+        O bot desativado entra aqui porque, para quem lê a tela, um projeto
+        cujo bot foi desligado também não é algo a cobrar.
+        """
+        if self.archived:
+            return 'arquivado no servidor de CI'
+        if self.local_archived:
+            return 'arquivado neste painel'
+        if self.bot_id and not self.bot.is_active:
+            return 'bot desativado'
+        return ''
+
 
 class CISchedule(models.Model):
     project = models.ForeignKey(CIProject, on_delete=models.CASCADE,

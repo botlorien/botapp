@@ -29,23 +29,29 @@
         <option value="canceled" {% if status == 'canceled' %}selected{% endif %}>canceled</option>
       </select>
     </div>
-    <label class="flex items-center gap-2 text-sm text-slate-300">
-      <input type="checkbox" name="monitored" value="1" class="fx-checkbox"
-             onchange="this.form.submit()"
-             {% if request.GET.monitored == '1' %}checked{% endif %}> só monitorados
-    </label>
-    <label class="flex items-center gap-2 text-sm text-slate-300">
-      <input type="checkbox" name="problemas" value="1" class="fx-checkbox"
-             onchange="this.form.submit()"
-             {% if request.GET.problemas == '1' %}checked{% endif %}> só com falha
-    </label>
-    <label class="flex items-center gap-2 text-sm text-slate-300">
-      <input type="checkbox" name="inativos" value="1" class="fx-checkbox"
-             onchange="this.form.submit()"
-             {% if request.GET.inativos == '1' %}checked{% endif %}> incluir inativos
-    </label>
+    <div>
+      <label class="fx-label">Exibir</label>
+      {# mesma altura dos inputs, senão as caixas caem para o rodapé do form #}
+      <div class="flex items-center gap-4 flex-wrap" style="min-height: 2.5rem">
+        <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+          <input type="checkbox" name="monitored" value="1" class="fx-checkbox"
+                 onchange="this.form.submit()"
+                 {% if request.GET.monitored == '1' %}checked{% endif %}> só monitorados
+        </label>
+        <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+          <input type="checkbox" name="problemas" value="1" class="fx-checkbox"
+                 onchange="this.form.submit()"
+                 {% if request.GET.problemas == '1' %}checked{% endif %}> só com falha
+        </label>
+        <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+          <input type="checkbox" name="inativos" value="1" class="fx-checkbox"
+                 onchange="this.form.submit()"
+                 {% if request.GET.inativos == '1' %}checked{% endif %}> incluir inativos
+        </label>
+      </div>
+    </div>
     <button class="btn-ghost"><i class="bi bi-funnel"></i> Filtrar</button>
-    {% if q or status or request.GET.monitored or request.GET.problemas %}
+    {% if q or status or request.GET.monitored or request.GET.problemas or request.GET.inativos %}
     <a href="{% url 'ci_projects' %}" class="btn-ghost"><i class="bi bi-x-lg"></i> Limpar</a>
     {% endif %}
   </form>

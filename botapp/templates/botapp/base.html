@@ -233,6 +233,14 @@
       :root[data-theme="light"] .fx-input, :root[data-theme="light"] .fx-select { background: #fff; border-color: #cbd5e1; color: #1e293b; }
       :root[data-theme="light"] .fx-label { color: #64748b; }
       :root[data-theme="light"] .fx-checkbox { background: #fff; border-color: #94a3b8; }
+      /* Precisa repetir o estado marcado aqui: o seletor de tema tem
+         especificidade maior que `.fx-checkbox:checked` e apagava o fundo azul,
+         deixando o "✓" branco invisível sobre branco — a caixa marcava e
+         parecia não marcar. */
+      :root[data-theme="light"] .fx-checkbox:checked {
+        background: linear-gradient(135deg, #2563eb, #4f46e5);
+        border-color: #3b82f6;
+      }
       :root[data-theme="light"] .btn-ghost { color: #475569; border-color: #cbd5e1; }
       :root[data-theme="light"] .btn-ghost:hover { color: #2563eb; }
       :root[data-theme="light"] .chip-success { color: #059669; }
