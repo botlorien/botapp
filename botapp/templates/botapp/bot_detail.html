@@ -194,6 +194,18 @@
     <h2 class="text-xl font-semibold text-slate-100">
       <i class="bi bi-journal-code text-slate-400"></i> Logs de Execução
     </h2>
+    {% if ci_enabled and ci_projects %}
+    <div class="flex gap-1 mt-2" role="tablist">
+      <button type="button" role="tab" id="aba-sdk" onclick="trocarAba('sdk')"
+              class="btn-ghost text-xs py-1 aba-ativa">
+        <i class="bi bi-cpu"></i> Execuções do SDK
+      </button>
+      <button type="button" role="tab" id="aba-ci" onclick="trocarAba('ci')"
+              class="btn-ghost text-xs py-1">
+        <i class="bi bi-diagram-3"></i> Pipelines de CI ({{ ci_pipelines|length }})
+      </button>
+    </div>
+    {% endif %}
     <form method="get" class="flex items-end gap-3 flex-wrap">
       <div>
         <label class="fx-label">Início</label>
@@ -208,7 +220,7 @@
   </div>
 
   <!-- Logs -->
-  <div class="glass-card overflow-hidden">
+  <div class="glass-card overflow-hidden" id="painel-sdk">
     <div class="overflow-x-auto">
       <table class="fx-table">
         <thead>
@@ -250,6 +262,74 @@
     </div>
   </div>
 
+  {% if ci_enabled and ci_projects %}
+  <div class="glass-card overflow-hidden hidden" id="painel-ci">
+    <div class="overflow-x-auto">
+      <table class="fx-table">
+        <thead>
+          <tr>
+            <th>Pipeline</th><th>Projeto</th><th>Status</th><th>Origem</th>
+            <th>Ref</th><th>Quando</th><th>Duração</th><th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in ci_pipelines %}
+          <tr>
+            <td><a class="text-sky-400 hover:underline" href="{% url 'ci_pipeline_detail' p.id %}">#{{ p.external_id }}</a></td>
+            <td class="text-slate-400">{{ p.project.path }}</td>
+            <td>
+              {% if p.status == 'success' and p.has_masked_error %}
+                <span class="chip chip-warning" title="verde com erro no log">success ⚠</span>
+              {% elif p.status == 'success' %}<span class="chip chip-success">success</span>
+              {% else %}<span class="chip chip-danger">{{ p.status }}</span>{% endif %}
+            </td>
+            <td class="text-slate-400">{{ p.source|default:"—" }}</td>
+            <td class="text-slate-400">{{ p.ref|default:"—" }}</td>
+            <td>{{ p.created_at|date:"d/m/Y H:i"|default:"—" }}</td>
+            <td class="text-slate-400">{{ p.duration|default:"—" }}</td>
+            <td>
+              <button type="button" class="btn-ghost text-xs py-1"
+                      data-pipeline="{{ p.id }}" data-rotulo="#{{ p.external_id }} · {{ p.project.path }}"
+                      onclick="abrirLogsPipeline(this)">
+                <i class="bi bi-eye"></i> Ver logs
+              </button>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-slate-400 py-6 text-center">
+            Nenhum pipeline no período selecionado.
+          </td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Modal do log de CI -->
+  <div id="modal-log-ci" class="hidden fixed inset-0 z-50 items-center justify-center p-4"
+       style="background: rgba(2,6,23,.75)" onclick="if(event.target===this)fecharLogCi()">
+    <div class="glass-card w-full max-w-5xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-700">
+        <h3 class="font-semibold text-slate-100">
+          <i class="bi bi-file-text text-sky-400"></i>
+          <span id="modal-log-titulo"></span>
+        </h3>
+        <button type="button" class="btn-ghost text-xs py-1" onclick="fecharLogCi()">
+          <i class="bi bi-x-lg"></i> Fechar
+        </button>
+      </div>
+      <div id="modal-log-jobs" class="p-3 flex flex-wrap gap-2 border-b border-slate-700"></div>
+      <pre id="modal-log-conteudo"
+           class="p-4 overflow-auto text-xs text-slate-200 whitespace-pre-wrap flex-1"
+           style="font-family: ui-monospace, monospace"></pre>
+      <p class="px-4 py-2 text-[11px] text-slate-500 border-t border-slate-700">
+        Log buscado no servidor de CI a cada abertura — o token nunca vai para o
+        navegador. O conteúdo é inserido como TEXTO, nunca como HTML.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Paginação -->
   <div class="fx-pagination">
     {% if page_obj.has_previous %}
@@ -279,6 +359,19 @@
     m.classList.add('hidden'); m.classList.remove('flex');
   }
 
+  // XSS: os valores abaixo vêm do BOT (traceback, host, resultado) e chegam a
+  // ser interpolados em innerHTML. Um bot que processa entrada de terceiro —
+  // assunto de e-mail, nome de arquivo, campo de portal — pode ter no traceback
+  // algo como <img src=x onerror=...>, que executaria no painel de quem abre o
+  // log. Escapar aqui fecha isso; a alternativa (textContent) exigiria
+  // reconstruir a montagem inteira.
+  function esc(valor) {
+    if (valor === null || valor === undefined) return valor;
+    return String(valor)
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+  }
+
   function formatLogData(data) {
     const items = [
       ['Tarefa', data.task], ['Descrição', data.description], ['Status', data.status],
@@ -291,17 +384,17 @@
     ];
     const html = items.map(([k,v]) => `
       <div class="border-b border-slate-800 py-2">
-        <div class="text-xs text-slate-500 uppercase tracking-wider">${k}</div>
-        <div class="text-sm text-slate-200 mt-0.5 break-words">${v ?? '<span class="text-slate-600">—</span>'}</div>
+        <div class="text-xs text-slate-500 uppercase tracking-wider">${esc(k)}</div>
+        <div class="text-sm text-slate-200 mt-0.5 break-words">${esc(v) ?? '<span class="text-slate-600">—</span>'}</div>
       </div>
     `).join('');
     const result = data.result_data ?
       `<div class="mt-4 pt-3 border-t border-slate-700">
          <div class="text-xs text-slate-500 uppercase tracking-wider mb-2">Resultado</div>
-         <pre class="bg-slate-950 border border-slate-800 rounded p-3 text-xs text-emerald-300 overflow-auto">${JSON.stringify(data.result_data, null, 2)}</pre>
+         <pre class="bg-slate-950 border border-slate-800 rounded p-3 text-xs text-emerald-300 overflow-auto">${esc(JSON.stringify(data.result_data, null, 2))}</pre>
        </div>` : '';
     return `
-      <div class="text-xs text-slate-500 mb-3">Log #${data.id}</div>
+      <div class="text-xs text-slate-500 mb-3">Log #${esc(data.id)}</div>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6">${html}</div>
       ${result}
     `;
@@ -402,4 +495,96 @@
 
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 </script>
+
+{% if ci_enabled and ci_projects %}
+<script>
+// ── Abas: execuções do SDK × pipelines de CI ────────────────────────────
+function trocarAba(qual) {
+  const paineis = {sdk: 'painel-sdk', ci: 'painel-ci'};
+  const abas = {sdk: 'aba-sdk', ci: 'aba-ci'};
+  for (const chave of Object.keys(paineis)) {
+    const painel = document.getElementById(paineis[chave]);
+    const aba = document.getElementById(abas[chave]);
+    if (!painel || !aba) continue;
+    painel.classList.toggle('hidden', chave !== qual);
+    aba.classList.toggle('aba-ativa', chave === qual);
+  }
+}
+
+// ── Modal do log ───────────────────────────────────────────────────────
+// REGRA DE SEGURANÇA DESTE BLOCO: log de CI é conteúdo NÃO CONFIÁVEL — vem de
+// qualquer script que qualquer pessoa colocou num pipeline. Ele é inserido
+// SEMPRE com textContent, NUNCA com innerHTML/insertAdjacentHTML. O servidor
+// ainda o entrega como text/plain + nosniff, mas a garantia real está aqui:
+// textContent não interpreta marcação, então <script> vira texto na tela.
+function abrirLogsPipeline(botao) {
+  const modal = document.getElementById('modal-log-ci');
+  const titulo = document.getElementById('modal-log-titulo');
+  const listaJobs = document.getElementById('modal-log-jobs');
+  const conteudo = document.getElementById('modal-log-conteudo');
+
+  titulo.textContent = botao.dataset.rotulo || 'Log da pipeline';
+  conteudo.textContent = 'carregando jobs...';
+  listaJobs.textContent = '';
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+
+  fetch(`${window.BOTAPP_PREFIX || ''}/ci/pipelines/${botao.dataset.pipeline}/jobs.json`,
+        {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    .then(r => r.json())
+    .then(d => {
+      if (!d.ok || !d.jobs.length) {
+        conteudo.textContent = 'Nenhum job encontrado para esta pipeline.';
+        return;
+      }
+      d.jobs.forEach((job, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn-ghost text-xs py-1';
+        // textContent: o nome do job também vem do CI
+        b.textContent = `${job.nome} (${job.status})`;
+        b.onclick = () => carregarLogJob(job.id, b);
+        listaJobs.appendChild(b);
+        if (i === 0) carregarLogJob(job.id, b);
+      });
+    })
+    .catch(() => { conteudo.textContent = 'Falha ao listar os jobs.'; });
+}
+
+function carregarLogJob(jobId, botao) {
+  const conteudo = document.getElementById('modal-log-conteudo');
+  document.querySelectorAll('#modal-log-jobs button')
+          .forEach(b => b.classList.remove('aba-ativa'));
+  if (botao) botao.classList.add('aba-ativa');
+  conteudo.textContent = 'carregando log...';
+  fetch(`${window.BOTAPP_PREFIX || ''}/ci/jobs/${jobId}/log/`)
+    .then(r => r.text())
+    .then(texto => {
+      // textContent — nunca innerHTML. É esta linha que impede XSS via log.
+      conteudo.textContent = texto || '(log vazio)';
+      conteudo.scrollTop = conteudo.scrollHeight;
+    })
+    .catch(() => { conteudo.textContent = 'Falha ao buscar o log no servidor de CI.'; });
+}
+
+function fecharLogCi() {
+  const modal = document.getElementById('modal-log-ci');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  document.getElementById('modal-log-conteudo').textContent = '';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') fecharLogCi();
+});
+</script>
+<style>
+  .aba-ativa {
+    background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
+    color: #fff !important;
+    border-color: #3b82f6 !important;
+  }
+</style>
+{% endif %}
+
 {% endblock %}

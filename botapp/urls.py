@@ -60,6 +60,8 @@ urlpatterns = [
          name='ci_bind_from_bot'),
     path('ci/pipelines/<int:pipeline_id>/', ci_views.pipeline_detail,
          name='ci_pipeline_detail'),
+    path('ci/pipelines/<int:pipeline_id>/jobs.json', ci_views.pipeline_jobs_json,
+         name='ci_pipeline_jobs_json'),
     path('ci/jobs/<int:job_id>/log/', ci_views.job_log, name='ci_job_log'),
     path('ci/jobs/<int:job_id>/excerpt/', ci_views.job_log_excerpt,
          name='ci_job_excerpt'),

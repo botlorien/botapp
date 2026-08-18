@@ -253,6 +253,22 @@ def pipeline_detail(request, pipeline_id):
 
 
 @login_required
+def pipeline_jobs_json(request, pipeline_id):
+    """Jobs de um pipeline, para a modal montar a lista sem recarregar a tela."""
+    _exige_ci(request)
+    pipeline = get_object_or_404(
+        CIPipeline.objects.select_related('project', 'project__bot'),
+        id=pipeline_id)
+    if not _projetos_no_escopo(
+            request, CIProject.objects.filter(id=pipeline.project_id)).exists():
+        raise Http404
+    return JsonResponse({'ok': True, 'jobs': [
+        {'id': j.id, 'nome': j.name, 'status': j.status, 'stage': j.stage,
+         'tem_cauda': bool(j.log_excerpt)}
+        for j in pipeline.jobs.order_by('id')]})
+
+
+@login_required
 def job_log(request, job_id):
     """Transmite o log do job buscando-o com o token no SERVIDOR.
 

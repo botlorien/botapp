@@ -211,11 +211,27 @@ def bot_detail(request, bot_id):
                 bot__isnull=True, archived=False, local_archived=False
             ).order_by('path'))
             candidatos, restantes = _sugerir_projetos_ci(bot.name, livres)
+        # pipelines dos projetos vinculados — a segunda aba dos logs. Reusa o
+        # MESMO filtro de período da aba do SDK: são duas visões do mesmo
+        # intervalo, e ter filtros separados confundiria a leitura.
+        from .models import CIPipeline
+        ci_pipelines = []
+        if vinculados.exists():
+            qs = CIPipeline.objects.filter(
+                project__in=vinculados).select_related('project').order_by(
+                '-created_at')
+            if start:
+                qs = qs.filter(created_at__date__gte=start.date())
+            if end:
+                qs = qs.filter(created_at__date__lte=end.date())
+            ci_pipelines = list(qs[:100])
+
         contexto_ci = {
             'ci_enabled': True,
             'ci_projects': vinculados,
             'ci_candidatos': candidatos,
             'ci_todos': restantes,
+            'ci_pipelines': ci_pipelines,
         }
 
     return render(request, 'botapp/bot_detail.html', {
