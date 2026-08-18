@@ -25,22 +25,42 @@ class Command(BaseCommand):
         parser.add_argument('--days', type=int, default=60,
                             help='Dias sem execução para considerar dormente.')
         parser.add_argument('--dry-run', action='store_true')
+        parser.add_argument('--incluir-agendados', action='store_true',
+                            help='Inclui projetos COM agendamento ativo. Use com '
+                                 'cuidado: agendado que não roda é problema, '
+                                 'não repositório abandonado.')
 
     def handle(self, *args, **opts):
         dias, seco = opts['days'], opts['dry_run']
+        incluir_agendados = opts['incluir_agendados']
         corte = timezone.now() - timedelta(days=dias)
 
+        # NUNCA arquivar projeto com agendamento ativo. "Sem execução há 30
+        # dias" não quer dizer abandonado: infraestrutura estável (proxy,
+        # storage, painel) faz deploy sob demanda e fica meses sem rodar. Já um
+        # projeto AGENDADO que não roda é um problema de verdade — é o alerta
+        # schedule_without_run, e arquivá-lo esconderia justamente o caso que
+        # se quer enxergar.
         candidatos = CIProject.objects.filter(
             monitored=True, archived=False, local_archived=False
         ).filter(last_pipeline_at__lt=corte)
+        if not incluir_agendados:
+            candidatos = candidatos.exclude(schedules__active=True)
+        candidatos = candidatos.distinct()
         # projeto sem NENHUMA execução conhecida entra também, desde que já
         # tenha passado por sync (senão arquivaríamos projeto recém-descoberto)
         sem_run = CIProject.objects.filter(
             monitored=True, archived=False, local_archived=False,
-            last_pipeline_at__isnull=True).exclude(pipelines_cursor__isnull=True)
+            last_pipeline_at__isnull=True
+        ).exclude(pipelines_cursor__isnull=True)
+        if not incluir_agendados:
+            sem_run = sem_run.exclude(schedules__active=True)
+        sem_run = sem_run.distinct()
 
         total = candidatos.count() + sem_run.count()
-        self.stdout.write(f'{total} projeto(s) dormente(s) há mais de {dias} dias')
+        self.stdout.write(
+            f'{total} projeto(s) dormente(s) há mais de {dias} dias'
+            + ('' if incluir_agendados else ' (agendados preservados)'))
         for p in list(candidatos[:20]) + list(sem_run[:10]):
             quando = (p.last_pipeline_at.strftime('%d/%m/%Y')
                       if p.last_pipeline_at else 'nunca')
