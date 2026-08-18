@@ -164,6 +164,9 @@ class TestClienteHttp(BaseCI):
 
 class TestSync(BaseCI):
     def _rotas_completas(self, status_pipeline='success', log=b'tudo certo\n'):
+        from django.utils import timezone
+        from datetime import timedelta
+        recente = (timezone.now() - timedelta(hours=1)).isoformat()
         return {
             '/api/v4/groups/': ([{'id': 7, 'path_with_namespace': 'g/proj',
                                   'name': 'proj', 'web_url': 'http://x/g/proj',
@@ -175,9 +178,9 @@ class TestSync(BaseCI):
             '/api/v4/projects/7/pipelines/900': (
                 {'id': 900, 'iid': 9, 'status': status_pipeline, 'source': 'schedule',
                  'ref': 'main', 'sha': 'abc', 'web_url': 'http://x/p/900',
-                 'created_at': '2026-01-01T10:00:00Z',
-                 'started_at': '2026-01-01T10:00:05Z',
-                 'finished_at': '2026-01-01T10:01:00Z', 'duration': 55,
+                 'created_at': recente,
+                 'started_at': recente,
+                 'finished_at': recente, 'duration': 55,
                  'user': {'username': 'operador'}}, {}),
             '/api/v4/projects/7/pipelines/900/jobs': (
                 [{'id': 5001, 'name': 'executa', 'stage': 'run',
@@ -327,13 +330,16 @@ class TestAgendamentoSemExecucao(BaseCI):
 class TestProgressoECusto(BaseCI):
     def test_primeiro_ciclo_puxa_menos_por_projeto(self):
         """Sem cursor, o limite é o reduzido — senão o primeiro ciclo leva horas."""
+        from django.utils import timezone
+        from datetime import timedelta
+        recente = (timezone.now() - timedelta(hours=1)).isoformat()
         muitos = [{'id': 900 + i, 'status': 'success'} for i in range(40)]
         rotas = self._rotas_base()
         rotas['/api/v4/projects/7/pipelines'] = (muitos, {})
         for i in range(40):
             rotas[f'/api/v4/projects/7/pipelines/{900 + i}'] = (
                 {'id': 900 + i, 'status': 'success', 'source': 'push',
-                 'created_at': '2026-01-01T10:00:00Z'}, {})
+                 'created_at': recente}, {})
             rotas[f'/api/v4/projects/7/pipelines/{900 + i}/jobs'] = ([], {})
         ServidorFalso.rotas = rotas
 
@@ -471,6 +477,25 @@ class TestPayloadDoAlerta(BaseCI):
         self.assertIn('job_db_id', a.payload)
         self.assertTrue(CIPipeline.objects.filter(id=a.payload['pipeline_db_id']).exists())
         self.assertTrue(CIJob.objects.filter(id=a.payload['job_db_id']).exists())
+
+
+class TestCorteDeIdade(BaseCI):
+    def test_execucao_antiga_nao_vira_alerta(self):
+        """A carga inicial importa historico; falha de meses atras nao e
+        acionavel e empurraria o alerta real para fora da tela."""
+        rotas = TestSync._rotas_completas(self, 'failed')
+        antigo = '2026-01-01T10:00:00Z'
+        detalhe = dict(rotas['/api/v4/projects/7/pipelines/900'][0])
+        detalhe['created_at'] = antigo
+        rotas['/api/v4/projects/7/pipelines/900'] = (detalhe, {})
+        ServidorFalso.rotas = rotas
+
+        from botapp.ci_sync import sync_pipelines, sync_projects
+        conexao = self.conexao()
+        sync_projects(conexao, self.cliente())
+        sync_pipelines(conexao, self.cliente())
+        self.assertEqual(CIPipeline.objects.count(), 1)   # importa
+        self.assertEqual(Alert.objects.count(), 0)        # mas nao alerta
 
 
 class TestSemVazamento(TestCase):

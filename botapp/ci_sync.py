@@ -52,6 +52,19 @@ def store_triggered_by():
     return _flag('BOTAPP_CI_STORE_TRIGGERED_BY', True)
 
 
+def alert_max_age_days():
+    """Idade máxima de um pipeline para ele ainda gerar alerta.
+
+    Existe porque a carga inicial importa histórico: sem este corte, um projeto
+    dormente cuja última execução falhou há meses vira alerta novo hoje — ruído
+    que não é acionável e que empurra o alerta real para fora da tela.
+    """
+    try:
+        return max(0, int(os.getenv('BOTAPP_CI_ALERT_MAX_AGE_DAYS', '7')))
+    except ValueError:
+        return 7
+
+
 def log_tail_bytes():
     try:
         return max(1024, int(os.getenv('BOTAPP_CI_LOG_TAIL_BYTES', '65536')))
@@ -294,6 +307,13 @@ def _abrir_alerta(tipo, projeto, mensagem, severidade, payload):
 
 def _avaliar_pipeline(cliente, pipeline):
     projeto = pipeline.project
+    limite_dias = alert_max_age_days()
+    if limite_dias and pipeline.created_at:
+        idade = timezone.now() - pipeline.created_at
+        if idade > timedelta(days=limite_dias):
+            # execução antiga demais para ser acionável (tipicamente vinda da
+            # carga inicial de histórico)
+            return 0
     base = {'project_id': projeto.id, 'project_path': projeto.path,
             'pipeline_id': pipeline.external_id,
             # ids internos: sem eles o alerta não consegue linkar para a tela
@@ -404,11 +424,18 @@ def resolver_alertas_obsoletos(connection):
             continue
         origem = CIPipeline.objects.filter(project_id=projeto_id,
                                            external_id=pipeline_id).first()
-        if not origem or not origem.created_at:
-            continue
+        if origem and origem.created_at:
+            referencia = origem.created_at
+        else:
+            # o pipeline que gerou o alerta pode não estar no banco (carga
+            # inicial limitada). Sem um fallback, esse alerta ficaria aberto
+            # para sempre mesmo com o projeto já recuperado. Usa a data do
+            # próprio alerta como referência — é conservador: exige sucesso
+            # posterior ao momento em que o problema foi notado.
+            referencia = alerta.created_at
         posterior_ok = CIPipeline.objects.filter(
             project_id=projeto_id, status='success',
-            created_at__gt=origem.created_at,
+            created_at__gt=referencia,
             has_masked_error=False).order_by('-created_at').first()
         if not posterior_ok:
             continue

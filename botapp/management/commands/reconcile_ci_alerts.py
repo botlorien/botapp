@@ -76,6 +76,34 @@ class Command(BaseCommand):
                 f'{candidatos} alerta(s) seriam resolvidos (simulação)'))
             return
 
+        # alerta gerado pela carga inicial sobre execução antiga não é
+        # acionável: fecha com marcação clara em vez de deixar poluindo
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from botapp.ci_sync import alert_max_age_days
+        dias = alert_max_age_days()
+        antigos = 0
+        if dias:
+            corte = timezone.now() - timedelta(days=dias)
+            for alerta in Alert.objects.filter(type__in=TIPOS,
+                                               resolved_at__isnull=True):
+                p_ = alerta.payload or {}
+                origem = CIPipeline.objects.filter(
+                    project_id=p_.get('project_id'),
+                    external_id=p_.get('pipeline_id')).first()
+                quando = origem.created_at if origem else None
+                if quando and quando < corte:
+                    alerta.resolved_at = timezone.now()
+                    alerta.payload = {**p_, 'fechado_por': 'execucao_antiga'}
+                    alerta.save(update_fields=['resolved_at', 'payload'])
+                    antigos += 1
+        if antigos:
+            self.stdout.write(self.style.WARNING(
+                f'{antigos} alerta(s) fechados por serem sobre execução com '
+                f'mais de {dias} dias (vieram da carga inicial de histórico)'))
+
         resolvidos = sum(resolver_alertas_obsoletos(c)
                          for c in CIConnection.objects.all())
         self.stdout.write(self.style.SUCCESS(

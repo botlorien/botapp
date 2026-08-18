@@ -681,6 +681,7 @@ namespace. Recomendações que o próprio código impõe:
 | `BOTAPP_CI_ERROR_PATTERNS` | `Traceback (most recent call last)`, `CRITICAL`, `FATAL` | padrões de erro no log (separados por `\|`) |
 | `BOTAPP_CI_IGNORE_PATTERNS` | vazio | ruídos a ignorar antes de casar padrão |
 | `BOTAPP_CI_LOG_TAIL_BYTES` | `65536` | tamanho máx. da cauda persistida |
+| `BOTAPP_CI_ALERT_MAX_AGE_DAYS` | `7` | não alerta sobre execução mais antiga que isso — a carga inicial importa histórico, e falha de meses atrás não é acionável |
 | `BOTAPP_CI_STORE_TRIGGERED_BY` | `true` | grava quem disparou o pipeline (**dado pessoal** — desligue se o seu regime tratar isso como monitoramento de pessoa) |
 | `BOTAPP_CI_ALLOW_INSECURE` | `false` | permite `http://` na base_url |
 | `BOTAPP_CI_TIMEOUT_SECONDS` | `30` | timeout por chamada |
