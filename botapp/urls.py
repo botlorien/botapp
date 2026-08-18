@@ -54,6 +54,8 @@ urlpatterns = [
          name='ci_project_toggle'),
     path('ci/projects/<int:project_id>/link-bot/', ci_views.project_link_bot,
          name='ci_project_link_bot'),
+    path('ci/bots/<int:bot_id>/bind/', ci_views.bind_from_bot,
+         name='ci_bind_from_bot'),
     path('ci/pipelines/<int:pipeline_id>/', ci_views.pipeline_detail,
          name='ci_pipeline_detail'),
     path('ci/jobs/<int:job_id>/log/', ci_views.job_log, name='ci_job_log'),

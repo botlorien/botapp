@@ -22,7 +22,7 @@
     </div>
     <div>
       <label class="fx-label">Status do último pipeline</label>
-      <select name="status" class="fx-select">
+      <select name="status" class="fx-select" onchange="this.form.submit()">
         <option value="">todos</option>
         <option value="success" {% if status == 'success' %}selected{% endif %}>success</option>
         <option value="failed" {% if status == 'failed' %}selected{% endif %}>failed</option>
@@ -31,13 +31,18 @@
     </div>
     <label class="flex items-center gap-2 text-sm text-slate-300">
       <input type="checkbox" name="monitored" value="1" class="fx-checkbox"
+             onchange="this.form.submit()"
              {% if request.GET.monitored == '1' %}checked{% endif %}> só monitorados
     </label>
     <label class="flex items-center gap-2 text-sm text-slate-300">
       <input type="checkbox" name="problemas" value="1" class="fx-checkbox"
+             onchange="this.form.submit()"
              {% if request.GET.problemas == '1' %}checked{% endif %}> só com falha
     </label>
     <button class="btn-ghost"><i class="bi bi-funnel"></i> Filtrar</button>
+    {% if q or status or request.GET.monitored or request.GET.problemas %}
+    <a href="{% url 'ci_projects' %}" class="btn-ghost"><i class="bi bi-x-lg"></i> Limpar</a>
+    {% endif %}
   </form>
 
   <div class="fx-header rounded-xl overflow-hidden">

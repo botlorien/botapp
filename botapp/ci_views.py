@@ -155,6 +155,28 @@ def project_link_bot(request, project_id):
     return redirect('ci_project_detail', project_id=projeto.id)
 
 
+@login_required
+@require_POST
+def bind_from_bot(request, bot_id):
+    """Vincula um projeto de CI a partir da tela do BOT.
+
+    Existe porque o caminho natural de quem opera é entrar pelo bot, não pelo
+    projeto de CI — obrigar o contrário escondia a funcionalidade.
+    """
+    _exige_ci(request)
+    if not scoping.pode_editar(request):
+        return JsonResponse({'ok': False, 'erro': 'sem permissão'}, status=403)
+    bot = get_object_or_404(Bot, id=bot_id)
+    if not scoping.bot_no_escopo(request, bot):
+        raise Http404
+    project_id = (request.POST.get('project_id') or '').strip()
+    if project_id:
+        projeto = get_object_or_404(CIProject, id=project_id)
+        projeto.bot = bot
+        projeto.save(update_fields=['bot'])
+    return redirect('bot_detail', bot_id=bot.id)
+
+
 # ── pipelines e log ────────────────────────────────────────────────────────
 @login_required
 def pipeline_detail(request, pipeline_id):

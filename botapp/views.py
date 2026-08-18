@@ -152,11 +152,34 @@ def bot_detail(request, bot_id):
     page_obj = paginator.get_page(request.GET.get('page'))
 
     default_hours = int(os.environ.get('BOTAPP_SILENT_BOT_THRESHOLD_HOURS', '24'))
+    # Vínculo com CI: até então só dava para amarrar entrando pelo projeto de
+    # CI. Quem trabalha no dia a dia entra pelo BOT, e é ali que a informação
+    # de "este bot é este repositório" precisa estar.
+    from .ci_sync import ci_enabled as _ci_on
+    contexto_ci = {}
+    if _ci_on():
+        from .models import CIProject
+        vinculados = CIProject.objects.filter(bot=bot).select_related('connection')
+        candidatos = []
+        if not vinculados.exists():
+            # sugere por semelhança de nome, mas NÃO vincula sozinho: casar por
+            # heurística e errar atribuiria telemetria ao bot errado
+            alvo = bot.name.lower().replace(' ', '_')
+            candidatos = list(CIProject.objects.filter(bot__isnull=True)
+                              .filter(path__icontains=alvo.split('_')[0])[:8])
+        contexto_ci = {
+            'ci_enabled': True,
+            'ci_projects': vinculados,
+            'ci_candidatos': candidatos,
+            'ci_todos': CIProject.objects.filter(bot__isnull=True).order_by('path')[:500],
+        }
+
     return render(request, 'botapp/bot_detail.html', {
         'bot': bot,
         'logs': page_obj,
         'page_obj': page_obj,
         'default_hours': default_hours,
+        **contexto_ci,
     })
 
 @login_required

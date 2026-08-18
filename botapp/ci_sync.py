@@ -295,7 +295,12 @@ def _abrir_alerta(tipo, projeto, mensagem, severidade, payload):
 def _avaliar_pipeline(cliente, pipeline):
     projeto = pipeline.project
     base = {'project_id': projeto.id, 'project_path': projeto.path,
-            'pipeline_id': pipeline.external_id, 'web_url': pipeline.web_url,
+            'pipeline_id': pipeline.external_id,
+            # ids internos: sem eles o alerta não consegue linkar para a tela
+            # do pipeline nem para o log, e o operador só pode reconhecer/
+            # resolver sem ver o que aconteceu
+            'pipeline_db_id': pipeline.id,
+            'web_url': pipeline.web_url,
             'ref': pipeline.ref, 'source': pipeline.source}
 
     if pipeline.status == 'failed':
@@ -307,7 +312,8 @@ def _avaliar_pipeline(cliente, pipeline):
             f'Pipeline #{pipeline.external_id} de {projeto.path} falhou '
             f'({", ".join(j.name for j in jobs) or "sem job identificado"})',
             Alert.Severity.HIGH,
-            {**base, 'jobs_falhos': [j.name for j in jobs]})
+            {**base, 'jobs_falhos': [j.name for j in jobs],
+             'job_db_id': jobs[0].id if jobs else None})
 
     if pipeline.status == 'success' and projeto.scan_logs:
         achado = _varrer_log_verde(cliente, pipeline)
@@ -319,7 +325,8 @@ def _avaliar_pipeline(cliente, pipeline):
                 f'VERDE mas o log do job "{job.name}" contém {padrao!r} — '
                 f'a exceção foi engolida e o processo saiu com código 0',
                 Alert.Severity.HIGH,
-                {**base, 'job': job.name, 'pattern': padrao})
+                {**base, 'job': job.name, 'pattern': padrao,
+                 'job_db_id': job.id})
     return 0
 
 
@@ -370,6 +377,47 @@ def _capturar_cauda(cliente, job):
     job.log_excerpt = aviso + limpar_ansi(texto)
     job.log_excerpt_at = timezone.now()
     job.save(update_fields=['log_excerpt', 'log_excerpt_at'])
+
+
+def resolver_alertas_obsoletos(connection):
+    """Fecha alerta de falha cujo projeto já voltou a passar depois.
+
+    Sem isto o painel acumula alerta de pipeline que falhou às 3h e passou às
+    4h — o operador perde tempo investigando algo que o próximo run já
+    resolveu, e o volume de alerta velho faz o alerta novo se perder no meio.
+
+    O critério é conservador: só resolve se existe um pipeline do MESMO projeto,
+    com sucesso, criado DEPOIS do que gerou o alerta. Alerta de projeto que
+    segue falhando permanece aberto.
+    """
+    from django.utils import timezone as tz
+    resolvidos = 0
+    abertos = Alert.objects.filter(
+        type__in=[Alert.Type.PIPELINE_FAILED, Alert.Type.PIPELINE_MASKED_ERROR],
+        resolved_at__isnull=True)
+
+    for alerta in abertos:
+        payload = alerta.payload or {}
+        projeto_id = payload.get('project_id')
+        pipeline_id = payload.get('pipeline_id')
+        if not projeto_id or not pipeline_id:
+            continue
+        origem = CIPipeline.objects.filter(project_id=projeto_id,
+                                           external_id=pipeline_id).first()
+        if not origem or not origem.created_at:
+            continue
+        posterior_ok = CIPipeline.objects.filter(
+            project_id=projeto_id, status='success',
+            created_at__gt=origem.created_at,
+            has_masked_error=False).order_by('-created_at').first()
+        if not posterior_ok:
+            continue
+        alerta.resolved_at = tz.now()
+        alerta.save(update_fields=['resolved_at'])
+        resolvidos += 1
+        logger.info('alerta %s resolvido: pipeline %s do mesmo projeto passou depois',
+                    alerta.id, posterior_ok.external_id)
+    return resolvidos
 
 
 def avaliar_agendamentos(connection, fator=3):
@@ -455,6 +503,9 @@ def sync_connection(connection, forcar_descoberta=False):
             resultado['descoberta'] = sync_projects(connection, cliente)
 
         resultado['execucoes'] = sync_pipelines(connection, cliente)
+        # resolve antes de avaliar: alerta obsoleto poluindo o painel esconde o
+        # alerta que importa
+        resultado['alertas_resolvidos'] = resolver_alertas_obsoletos(connection)
         resultado['alertas_agendamento'] = avaliar_agendamentos(connection)
 
         connection.last_sync_at = timezone.now()

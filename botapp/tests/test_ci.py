@@ -387,6 +387,92 @@ class TestLimpezaAnsi(BaseCI):
         return TestSync._rotas_completas(self, status_pipeline, log)
 
 
+class TestAlertaObsoleto(BaseCI):
+    def test_alerta_de_falha_some_quando_o_run_seguinte_passa(self):
+        """Alerta velho poluindo o painel esconde o alerta que importa."""
+        from botapp.ci_sync import resolver_alertas_obsoletos
+        from django.utils import timezone
+        from datetime import timedelta
+
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(connection=conexao, external_id=7,
+                                           path='g/proj', name='proj')
+        agora = timezone.now()
+        ruim = CIPipeline.objects.create(project=projeto, external_id=100,
+                                         status='failed',
+                                         created_at=agora - timedelta(hours=2))
+        Alert.objects.create(type=Alert.Type.PIPELINE_FAILED,
+                             severity=Alert.Severity.HIGH,
+                             message='falhou',
+                             payload={'project_id': projeto.id,
+                                      'pipeline_id': ruim.external_id})
+        # ainda não há run posterior: o alerta PERMANECE
+        self.assertEqual(resolver_alertas_obsoletos(conexao), 0)
+
+        CIPipeline.objects.create(project=projeto, external_id=101,
+                                  status='success',
+                                  created_at=agora - timedelta(minutes=10))
+        self.assertEqual(resolver_alertas_obsoletos(conexao), 1)
+        self.assertIsNotNone(Alert.objects.first().resolved_at)
+
+    def test_projeto_que_segue_falhando_mantem_o_alerta(self):
+        from botapp.ci_sync import resolver_alertas_obsoletos
+        from django.utils import timezone
+        from datetime import timedelta
+
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(connection=conexao, external_id=8,
+                                           path='g/ruim', name='ruim')
+        agora = timezone.now()
+        ruim = CIPipeline.objects.create(project=projeto, external_id=200,
+                                         status='failed',
+                                         created_at=agora - timedelta(hours=2))
+        CIPipeline.objects.create(project=projeto, external_id=201,
+                                  status='failed',
+                                  created_at=agora - timedelta(minutes=5))
+        Alert.objects.create(type=Alert.Type.PIPELINE_FAILED,
+                             severity=Alert.Severity.HIGH, message='falhou',
+                             payload={'project_id': projeto.id,
+                                      'pipeline_id': ruim.external_id})
+        self.assertEqual(resolver_alertas_obsoletos(conexao), 0)
+
+    def test_verde_com_erro_nao_conta_como_recuperacao(self):
+        """Um 'sucesso' que tem erro no log não prova que voltou a funcionar."""
+        from botapp.ci_sync import resolver_alertas_obsoletos
+        from django.utils import timezone
+        from datetime import timedelta
+
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(connection=conexao, external_id=9,
+                                           path='g/x', name='x')
+        agora = timezone.now()
+        ruim = CIPipeline.objects.create(project=projeto, external_id=300,
+                                         status='failed',
+                                         created_at=agora - timedelta(hours=2))
+        CIPipeline.objects.create(project=projeto, external_id=301,
+                                  status='success', has_masked_error=True,
+                                  created_at=agora - timedelta(minutes=5))
+        Alert.objects.create(type=Alert.Type.PIPELINE_FAILED,
+                             severity=Alert.Severity.HIGH, message='falhou',
+                             payload={'project_id': projeto.id,
+                                      'pipeline_id': ruim.external_id})
+        self.assertEqual(resolver_alertas_obsoletos(conexao), 0)
+
+
+class TestPayloadDoAlerta(BaseCI):
+    def test_alerta_carrega_ids_para_o_painel_linkar(self):
+        ServidorFalso.rotas = TestSync._rotas_completas(self, 'failed')
+        from botapp.ci_sync import sync_pipelines, sync_projects
+        conexao = self.conexao()
+        sync_projects(conexao, self.cliente())
+        sync_pipelines(conexao, self.cliente())
+        a = Alert.objects.get(type=Alert.Type.PIPELINE_FAILED)
+        self.assertIn('pipeline_db_id', a.payload)
+        self.assertIn('job_db_id', a.payload)
+        self.assertTrue(CIPipeline.objects.filter(id=a.payload['pipeline_db_id']).exists())
+        self.assertTrue(CIJob.objects.filter(id=a.payload['job_db_id']).exists())
+
+
 class TestSemVazamento(TestCase):
     """O pacote é público: o código não pode citar organização nem credencial."""
 

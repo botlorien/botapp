@@ -173,6 +173,28 @@
             <i class="bi bi-arrow-right"></i> Ver bot
           </a>
           {% endif %}
+          {# Alerta de CI: sem estes atalhos o operador só consegue reconhecer
+             ou resolver, sem poder olhar o log e entender o que aconteceu. #}
+          {% if alert.payload.project_id %}
+          <a href="{% url 'ci_project_detail' alert.payload.project_id %}" class="btn-ghost text-xs py-1.5 w-full sm:w-auto">
+            <i class="bi bi-folder2-open"></i> Ver projeto
+          </a>
+          {% endif %}
+          {% if alert.payload.pipeline_db_id %}
+          <a href="{% url 'ci_pipeline_detail' alert.payload.pipeline_db_id %}" class="btn-ghost text-xs py-1.5 w-full sm:w-auto">
+            <i class="bi bi-play-circle"></i> Ver pipeline
+          </a>
+          {% endif %}
+          {% if alert.payload.job_db_id %}
+          <a href="{% url 'ci_job_log' alert.payload.job_db_id %}" target="_blank" rel="noopener" class="btn-ghost text-xs py-1.5 w-full sm:w-auto">
+            <i class="bi bi-file-text"></i> Abrir log
+          </a>
+          {% endif %}
+          {% if alert.payload.web_url %}
+          <a href="{{ alert.payload.web_url }}" target="_blank" rel="noopener" class="btn-ghost text-xs py-1.5 w-full sm:w-auto">
+            <i class="bi bi-box-arrow-up-right"></i> Abrir no CI
+          </a>
+          {% endif %}
         </div>
       </div>
     </div>

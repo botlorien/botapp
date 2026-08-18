@@ -52,6 +52,73 @@
 
   {% if user.is_staff or user.is_superuser %}
   <!-- Threshold de silêncio (individual) -->
+  {% if ci_enabled %}
+  <div class="glass-card p-5">
+    <div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center shrink-0">
+        <i class="bi bi-diagram-3 text-sky-400 text-lg"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <h2 class="text-lg font-semibold text-slate-100">Projeto de CI</h2>
+        <p class="text-sm text-slate-400 mt-0.5">
+          Vincular o repositório faz o painel mostrar as duas visões juntas: o que
+          o SDK registrou e o que o CI observou. É assim que aparece o caso de
+          <strong>rodou no CI e não instrumentou</strong>.
+        </p>
+
+        {% if ci_projects %}
+        <ul class="mt-3 space-y-2">
+          {% for p in ci_projects %}
+          <li class="flex items-center justify-between gap-3 flex-wrap">
+            <span class="text-slate-200 text-sm">
+              <i class="bi bi-folder2-open text-sky-400"></i> {{ p.path }}
+              {% if p.last_pipeline_status == 'success' %}
+                <span class="text-emerald-400 text-xs">último: success</span>
+              {% elif p.last_pipeline_status %}
+                <span class="text-red-400 text-xs">último: {{ p.last_pipeline_status }}</span>
+              {% endif %}
+            </span>
+            <span class="flex gap-2">
+              <a href="{% url 'ci_project_detail' p.id %}" class="btn-ghost text-xs py-1">
+                <i class="bi bi-arrow-right"></i> Abrir
+              </a>
+              <form method="post" action="{% url 'ci_project_link_bot' p.id %}">
+                {% csrf_token %}
+                <input type="hidden" name="bot_id" value="">
+                <button class="btn-ghost text-xs py-1"><i class="bi bi-x-lg"></i> Desvincular</button>
+              </form>
+            </span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <form method="post" action="{% url 'ci_bind_from_bot' bot.id %}" class="mt-3 flex items-end gap-2 flex-wrap">
+          {% csrf_token %}
+          <div class="min-w-[16rem]">
+            <label class="fx-label">Escolher projeto</label>
+            <select name="project_id" class="fx-select w-full">
+              <option value="">— selecione —</option>
+              {% for c in ci_candidatos %}
+              <option value="{{ c.id }}">{{ c.path }} (sugerido)</option>
+              {% endfor %}
+              {% for c in ci_todos %}
+              <option value="{{ c.id }}">{{ c.path }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button class="btn-primary text-xs py-2"><i class="bi bi-link-45deg"></i> Vincular</button>
+        </form>
+        <p class="text-xs text-slate-500 mt-2">
+          As opções marcadas como sugeridas vêm de semelhança de nome — a
+          confirmação é sua de propósito: vincular ao repositório errado
+          atribuiria telemetria ao bot errado.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <div class="glass-card p-5">
     <div class="flex items-start justify-between flex-wrap gap-4">
       <div class="flex items-start gap-3">
