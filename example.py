@@ -3,7 +3,8 @@ import threading
 from botapp import BotApp
 
 # 1. Inicializa o app e conecta com o banco
-app = BotApp('BotsExemplo')
+# O argumento é o PREFIXO das env vars de conexão (ex.: PG_MEUS_BOTS_HOST).
+app = BotApp('MEUS_BOTS')
 
 # 2. Registra o bot antes de usar qualquer task
 app.set_bot(
@@ -47,7 +48,7 @@ except Exception as e:
 
 # Novo app para testar o bot inativo
 
-app2 = BotApp('BotsExemplo')
+app2 = BotApp('MEUS_BOTS')
 
 app2.set_bot(
     bot_name='Bot_teste_inativo',
