@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="botapp",
-    version="0.6.5",
+    version="0.6.6",
     packages=find_packages(),
     include_package_data=True,  # Inclui arquivos de dados especificados no MANIFEST.in
     license="MIT",
@@ -23,18 +23,21 @@ setup(
         "ci-db-token": ["cryptography>=42"],
     },
     install_requires=[
-        # Faixa ampla: hosts antigos (3.2) continuam funcionando; hosts novos
-        # podem rodar 4.2/5.x sem precisar mudar o pacote. Recomendado: >=4.2
-        # para fechar CVEs que só tem patch nas séries em suporte.
-        "Django>=3.2,<5.3",
+        # Piso em 4.2 (LTS): a 3.2 saiu de suporte em abril/2024 e nao recebe
+        # mais correcao de seguranca. Um pacote que manipula token de CI nao
+        # pode permitir instalacao sobre uma base sem patch.
+        "Django>=4.2,<5.3",
         "psycopg2-binary>=2.9.10",
         "django-admin-rangefilter",
         "openpyxl",
         "python-dotenv>=1.0.0",
         "xhtml2pdf>=0.2.17",  # CVE-2024-25885: ReDoS em getcolor (<0.2.17)
         "whitenoise",
-        "djangorestframework",
-        "requests",
+        "djangorestframework>=3.15.2",
+        # piso por seguranca: <2.31 vaza Proxy-Authorization em redirect
+        # (CVE-2023-32681) e <2.32 nao respeita verify=False por sessao
+        # (CVE-2024-35195). O cliente de CI manda token em header.
+        "requests>=2.32.0",
         "django-ratelimit",
     ],
     python_requires=">=3.8",

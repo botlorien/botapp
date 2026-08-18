@@ -75,6 +75,35 @@ def log_tail_bytes():
 
 _ANSI = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
 
+# Padrões que NÃO devem ser persistidos no banco do painel. O servidor de CI
+# mascara as variáveis marcadas como protegidas, mas nada impede um script de
+# imprimir um valor por conta própria — e a cauda do log fica gravada aqui.
+# Redigir na entrada é mais barato que descobrir depois que o dump de backup
+# do painel virou um repositório de credenciais.
+_SEGREDOS = [
+    (re.compile(r'\bgl(?:pat|rt)-[A-Za-z0-9_-]{15,}'), 'gl***-[REDIGIDO]'),
+    (re.compile(r'\bAKIA[0-9A-Z]{16}\b'), 'AKIA[REDIGIDO]'),
+    (re.compile(r'\bghp_[A-Za-z0-9]{20,}'), 'ghp_[REDIGIDO]'),
+    (re.compile(r'\bxox[baprs]-[A-Za-z0-9-]{10,}'), 'xox*-[REDIGIDO]'),
+    (re.compile(r'(?i)\bbearer\s+[A-Za-z0-9._-]{20,}'), 'Bearer [REDIGIDO]'),
+    (re.compile(r'-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----'
+                r'[\s\S]*?-----END (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----'),
+     '[CHAVE PRIVADA REDIGIDA]'),
+    # senha embutida em URL: preserva o host, some com a credencial
+    (re.compile(r'://([^/\s:@]+):([^@/\s]{4,})@'), r'://\1:[REDIGIDO]@'),
+    # valor literal após password=/senha=/secret= (a REFERÊNCIA $VAR fica)
+    (re.compile(r'(?i)\b(password|passwd|senha|secret|token|api[_-]?key)'
+                r'(\s*[=:]\s*)(?!\$)([\'"]?)([^\s\'"&]{6,})'),
+     r'\1\2\3[REDIGIDO]'),
+]
+
+
+def redigir_segredos(texto):
+    """Mascara o que parece credencial antes de gravar o log no banco."""
+    for padrao, troca in _SEGREDOS:
+        texto = padrao.sub(troca, texto)
+    return texto
+
 
 def limpar_ansi(texto):
     """Remove códigos de cor do trace.
@@ -377,7 +406,7 @@ def _varrer_log_verde(cliente, pipeline):
         limpo = '\n'.join(linhas)
         for padrao in padroes:
             if padrao in limpo:
-                job.log_excerpt = limpo[-log_tail_bytes():]
+                job.log_excerpt = redigir_segredos(limpo[-log_tail_bytes():])
                 job.log_excerpt_at = timezone.now()
                 job.matched_pattern = padrao[:255]
                 job.save(update_fields=['log_excerpt', 'log_excerpt_at',
@@ -400,7 +429,7 @@ def _capturar_cauda(cliente, job):
     except (CIError, CIConfigError):
         return
     aviso = '[...log truncado; exibindo o final...]\n' if truncado else ''
-    job.log_excerpt = aviso + limpar_ansi(texto)
+    job.log_excerpt = aviso + redigir_segredos(limpar_ansi(texto))
     job.log_excerpt_at = timezone.now()
     job.save(update_fields=['log_excerpt', 'log_excerpt_at'])
 

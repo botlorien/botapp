@@ -558,6 +558,51 @@ class TestInativos(BaseCI):
                              for x in ServidorFalso.recebidos))
 
 
+class TestRedacaoDeSegredos(TestCase):
+    """O log guardado no banco não pode virar repositório de credencial."""
+
+    def test_redige_credenciais_conhecidas(self):
+        from botapp.ci_sync import redigir_segredos
+        casos = [
+            'usando token glpat-ABCDEFGHIJKLMNOPQRST agora',
+            'AWS AKIAIOSFODNN7EXAMPLE aqui',
+            'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+            'psql postgres://user:SenhaSuperSecreta@host:5432/db',
+            'export PASSWORD=MinhaSenhaLiteral123',
+        ]
+        vazados = ['glpat-ABCDEFGHIJKLMNOPQRST', 'AKIAIOSFODNN7EXAMPLE',
+                   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+                   'SenhaSuperSecreta', 'MinhaSenhaLiteral123']
+        for texto, segredo in zip(casos, vazados):
+            redigido = redigir_segredos(texto)
+            self.assertNotIn(segredo, redigido,
+                             f'vazou {segredo!r} em {redigido!r}')
+            self.assertIn('REDIGIDO', redigido)
+
+    def test_preserva_referencia_a_variavel(self):
+        """`PASSWORD=$PG_PASSWORD` é referência, não segredo — e é o que mais
+        aparece em log de CI. Redigir isso destruiria informação útil."""
+        from botapp.ci_sync import redigir_segredos
+        texto = 'PGPASSWORD=$PG_DW_PASSWORD psql -h host'
+        self.assertIn('$PG_DW_PASSWORD', redigir_segredos(texto))
+
+    def test_chave_privada_inteira_some(self):
+        from botapp.ci_sync import redigir_segredos
+        chave = ('-----BEGIN RSA PRIVATE KEY-----\n'
+                 'MIIEowIBAAKCAQEAxyz\n-----END RSA PRIVATE KEY-----')
+        r = redigir_segredos(f'antes\n{chave}\ndepois')
+        self.assertNotIn('MIIEowIBAAKCAQEAxyz', r)
+        self.assertIn('antes', r)
+        self.assertIn('depois', r)
+
+    def test_host_da_url_e_preservado(self):
+        """Redigir a senha não pode apagar de qual host se tratava."""
+        from botapp.ci_sync import redigir_segredos
+        r = redigir_segredos('postgres://admin:s3nh4forte@db.interno:5432/x')
+        self.assertIn('db.interno', r)
+        self.assertNotIn('s3nh4forte', r)
+
+
 class TestSemVazamento(TestCase):
     """O pacote é público: o código não pode citar organização nem credencial."""
 
