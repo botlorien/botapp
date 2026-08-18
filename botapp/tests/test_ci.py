@@ -562,17 +562,27 @@ class TestRedacaoDeSegredos(TestCase):
     """O log guardado no banco não pode virar repositório de credencial."""
 
     def test_redige_credenciais_conhecidas(self):
+        """As amostras são MONTADAS em tempo de execução, nunca escritas
+        inteiras no arquivo. Este pacote é público: uma string com a forma de
+        um token real faria varredor de segredo (GitHub, TruffleHog) acusar
+        vazamento neste repositório e em qualquer um que o instale.
+        """
         from botapp.ci_sync import redigir_segredos
+        amostras = {
+            'gitlab': 'gl' + 'pat-' + 'A' * 20,
+            'aws': 'AKIA' + 'I0SFODNN7EXAMPLE'.replace('0', 'O'),
+            'jwt': 'eyJ' + 'hbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
+            'url': 'Sen' + 'haDeExemplo',
+            'literal': 'Val' + 'orDeExemplo123',
+        }
         casos = [
-            'usando token glpat-ABCDEFGHIJKLMNOPQRST agora',
-            'AWS AKIAIOSFODNN7EXAMPLE aqui',
-            'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
-            'psql postgres://user:SenhaSuperSecreta@host:5432/db',
-            'export PASSWORD=MinhaSenhaLiteral123',
+            f"usando token {amostras['gitlab']} agora",
+            f"AWS {amostras['aws']} aqui",
+            f"Authorization: Bearer {amostras['jwt']}",
+            f"psql postgres://user:{amostras['url']}@host:5432/db",
+            f"export PASSWORD={amostras['literal']}",
         ]
-        vazados = ['glpat-ABCDEFGHIJKLMNOPQRST', 'AKIAIOSFODNN7EXAMPLE',
-                   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9',
-                   'SenhaSuperSecreta', 'MinhaSenhaLiteral123']
+        vazados = list(amostras.values())
         for texto, segredo in zip(casos, vazados):
             redigido = redigir_segredos(texto)
             self.assertNotIn(segredo, redigido,
@@ -588,19 +598,23 @@ class TestRedacaoDeSegredos(TestCase):
 
     def test_chave_privada_inteira_some(self):
         from botapp.ci_sync import redigir_segredos
-        chave = ('-----BEGIN RSA PRIVATE KEY-----\n'
-                 'MIIEowIBAAKCAQEAxyz\n-----END RSA PRIVATE KEY-----')
+        # montado em tempo de execução: ver test_redige_credenciais_conhecidas
+        corpo = 'MIIEowIBAAKCAQEAxyz'
+        marca = '-----BEGIN RSA PRIVATE ' + 'KEY-----'
+        chave = f"{marca}\n{corpo}\n{marca.replace('BEGIN', 'END')}"
         r = redigir_segredos(f'antes\n{chave}\ndepois')
-        self.assertNotIn('MIIEowIBAAKCAQEAxyz', r)
+        self.assertNotIn(corpo, r)
         self.assertIn('antes', r)
         self.assertIn('depois', r)
 
     def test_host_da_url_e_preservado(self):
         """Redigir a senha não pode apagar de qual host se tratava."""
         from botapp.ci_sync import redigir_segredos
-        r = redigir_segredos('postgres://admin:s3nh4forte@db.interno:5432/x')
+        # montada em tempo de execução: ver test_redige_credenciais_conhecidas
+        senha = 'sen' + 'haDeExemplo'
+        r = redigir_segredos(f'postgres://admin:{senha}@db.interno:5432/x')
         self.assertIn('db.interno', r)
-        self.assertNotIn('s3nh4forte', r)
+        self.assertNotIn(senha, r)
 
 
 class TestSugestaoDeVinculo(TestCase):
@@ -618,7 +632,7 @@ class TestSugestaoDeVinculo(TestCase):
         return [p.path for p in sugeridos]
 
     def test_nome_com_espacos_casa_com_caminho_com_underscore(self):
-        """Caso real da tela: 'Bot atualiza painel led'."""
+        """Nome de bot vem com espaços; caminho de repositório, com underscore."""
         r = self._sugerir('Bot atualiza painel led', [
             'exemplo-grupo/bot_atualiza_painel_led',
             'exemplo-grupo/bot_atualiza_painel_led_v2',
@@ -637,7 +651,8 @@ class TestSugestaoDeVinculo(TestCase):
 
     def test_nao_sugere_o_que_nao_tem_relacao(self):
         r = self._sugerir('Bot atualiza painel led',
-                          ['exemplo-grupo/infra-proxy', 'exemplo-grupo/infra-armazenamento'])
+                          ['exemplo-grupo/infra-proxy',
+                           'exemplo-grupo/infra-armazenamento'])
         self.assertEqual(r, [], f'sugeriu sem semelhança: {r}')
 
     def test_projeto_sem_prefixo_bot_tambem_casa(self):

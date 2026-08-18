@@ -159,3 +159,5 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 staticfiles/
+# lista local de termos que nao podem ser publicados (nao versionar)
+.termos-privados.txt

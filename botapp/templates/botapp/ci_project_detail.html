@@ -101,7 +101,7 @@
         {# input+datalist: pesquisável ao digitar, sem depender de lib externa #}
         <input list="ci-bots-{{ project.id }}" name="bot_name"
                class="fx-input w-full" autocomplete="off"
-               placeholder="digite parte do nome, ex.: exemplo">
+               placeholder="digite parte do nome do bot">
         <datalist id="ci-bots-{{ project.id }}">
           {% for b in bots_sugeridos %}<option value="{{ b.name }}">sugerido</option>{% endfor %}
           {% for b in bots_outros %}<option value="{{ b.name }}"></option>{% endfor %}

@@ -152,7 +152,7 @@ def bot_list(request):
 def _normalizar_nome(texto):
     """Reduz nome de bot e caminho de projeto a um denominador comum.
 
-    "Bot atualiza painel led" e "exemplo-grupo/bot_atualiza_painel_led" precisam
+    "Bot atualiza painel" e "grupo/bot_atualiza_painel" precisam
     virar a mesma coisa para poderem ser comparados.
     """
     import re
@@ -163,10 +163,10 @@ def _normalizar_nome(texto):
 def _ordenar_por_semelhanca(referencia, itens, rotulo, limite=6, corte=0.34):
     """Separa `itens` em (sugeridos, resto) por semelhança com `referencia`.
 
-    Combina duas medidas: proporção de palavras em comum (pega
-    "atualiza painel led" dentro de "bot_atualiza_painel_led_v2") e similaridade
-    de sequência (tolera plural, typo e ordem trocada). A sugestão só ORDENA —
-    quem confirma é a pessoa.
+    Combina duas medidas: proporção de palavras em comum (acha o nome do bot
+    dentro de um caminho com prefixo e sufixo) e similaridade de sequência
+    (tolera plural, typo e ordem trocada). A sugestão só ORDENA — quem confirma
+    é a pessoa.
 
     Serve aos dois sentidos do vínculo (bot → projeto e projeto → bot), que
     precisam ordenar igual; duas cópias divergiriam com o tempo.

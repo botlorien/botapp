@@ -18,7 +18,7 @@ class VinculoPelaTelaDoProjeto(TestCase):
         self.certo = Bot.objects.create(
             name='Bot exporta relatorio para planilha',
             description='x', version='1')
-        self.outro = Bot.objects.create(name='Bot financeiro fatura',
+        self.outro = Bot.objects.create(name='Bot outro assunto',
                                         description='x', version='1')
         usuario = get_user_model().objects.create_user(
             'adm', password='x', is_staff=True, is_superuser=True)

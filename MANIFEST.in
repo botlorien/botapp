@@ -5,3 +5,17 @@ include botapp/templates/*
 recursive-include botapp/migrations *
 recursive-include botapp/static *
 recursive-include botapp/templates *
+
+# Bytecode NUNCA vai para o pacote. Os `recursive-include *` acima varrem
+# __pycache__ junto, e um .pyc grava o CAMINHO ABSOLUTO da máquina onde foi
+# compilado — foi assim que as versões 0.1.x–0.3.0 publicaram a estrutura de
+# pastas da estação de quem construiu. Excluir aqui é o que impede a repetição.
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+prune **/__pycache__
+
+# Nada de configuração local, banco de teste ou credencial.
+global-exclude .env
+global-exclude *.sqlite3
+global-exclude *.log

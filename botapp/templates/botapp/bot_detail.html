@@ -115,7 +115,7 @@
             {# input+datalist: pesquisável ao digitar, sem depender de lib externa #}
             <input list="ci-projetos-{{ bot.id }}" name="project_path"
                    class="fx-input w-full" autocomplete="off"
-                   placeholder="digite parte do caminho, ex.: update_led">
+                   placeholder="digite parte do caminho do repositório">
             <datalist id="ci-projetos-{{ bot.id }}">
               {% for c in ci_candidatos %}<option value="{{ c.path }}">sugerido</option>{% endfor %}
               {% for c in ci_todos %}<option value="{{ c.path }}"></option>{% endfor %}
