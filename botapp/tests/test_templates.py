@@ -34,3 +34,23 @@ class ComentariosDeTemplate(TestCase):
                     problemas.append(f'{arquivo.name}:{numero}')
         self.assertEqual(problemas, [], f'tag de template sem fechamento na '
                                         f'mesma linha: {problemas}')
+
+
+class CookiesComNomeProprio(TestCase):
+    """Atrás de um proxy same-origin, o Domain some e os cookies de todas as
+    aplicações caem no host do proxy com Path=/. Com os nomes default do Django
+    elas se sobrescrevem: csrftoken trocado vira 403 em toda mutação, sessionid
+    trocado derruba a sessão. Isso aconteceu em produção."""
+
+    def test_nomes_nao_sao_os_defaults_do_django(self):
+        from django.conf import settings
+        self.assertNotEqual(settings.CSRF_COOKIE_NAME, 'csrftoken')
+        self.assertNotEqual(settings.SESSION_COOKIE_NAME, 'sessionid')
+
+    def test_front_nao_le_o_cookie_pelo_nome(self):
+        """O JS lia /csrftoken=([^;]+)/ do document.cookie — acoplado ao nome e
+        capaz de pegar o cookie de outra aplicação no mesmo host."""
+        for arquivo in TEMPLATES:
+            texto = arquivo.read_text(encoding='utf-8')
+            self.assertNotIn('document.cookie.match', texto,
+                             f'{arquivo.name} ainda lê o cookie direto')

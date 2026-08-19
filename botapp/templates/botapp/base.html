@@ -55,12 +55,17 @@
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
     <script>
+      // Token renderizado pelo SERVIDOR. Ler `document.cookie` acopla o JS ao
+      // nome do cookie (que é configurável) e, atrás de proxy, pode pegar o
+      // cookie de OUTRA aplicação no mesmo host — a origem dos 403 de CSRF.
+      window.BOTAPP_CSRF = '{{ csrf_token }}';
+      function botappCsrf() { return window.BOTAPP_CSRF || ''; }
+
       // HTMX: envia CSRF automaticamente em qualquer método não-seguro.
       document.addEventListener('DOMContentLoaded', function() {
         if (!window.htmx) return;
         document.body.addEventListener('htmx:configRequest', function(evt) {
-          const m = document.cookie.match(/csrftoken=([^;]+)/);
-          if (m) evt.detail.headers['X-CSRFToken'] = m[1];
+          if (botappCsrf()) evt.detail.headers['X-CSRFToken'] = botappCsrf();
           // Prefixa requisições HTMX absolutas com o BOTAPP_PREFIX (subpath proxy).
           var pfx = window.BOTAPP_PREFIX || '';
           if (pfx && evt.detail.path && evt.detail.path.charAt(0) === '/' &&

@@ -226,8 +226,9 @@
 
 <script>
   function getCsrf() {
-    const m = document.cookie.match(/csrftoken=([^;]+)/);
-    return m ? m[1] : '';
+    // token do servidor (ver base.html): não depende do nome do cookie
+    return (typeof botappCsrf === 'function') ? botappCsrf()
+                                             : (window.BOTAPP_CSRF || '');
   }
   async function postAlert(url) {
     const resp = await fetch(bpUrl(url), {
@@ -304,8 +305,12 @@
         if (!dryRun && data.count > 0) setTimeout(() => location.reload(), 1500);
       }
     } catch (e) {
+      // Não é só "rede": `resp.json()` também estoura quando o servidor
+      // responde HTML (403 de CSRF, página de erro, redirect de login). Dizer
+      // "Erro de rede" nesses casos manda o operador investigar o lugar errado.
       result.className = 'text-sm p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-300';
-      result.textContent = 'Erro de rede.';
+      result.textContent = 'Falha na requisição: ' + (e && e.message ? e.message : e)
+        + '. Se persistir, recarregue a página (a sessão pode ter expirado).';
     } finally {
       btn.disabled = false;
     }

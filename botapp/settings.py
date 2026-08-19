@@ -38,6 +38,23 @@ if SECRET_KEY == 'chave-super-secreta-para-dev':
         )
 
 ALLOWED_HOSTS = os.getenv("BOTAPP_ALLOWED_HOSTS", '*').split(',')
+
+# Cookies com nome PRÓPRIO — não os defaults `sessionid`/`csrftoken`.
+#
+# Este painel costuma ser servido same-origin atrás de um proxy, sob um prefixo
+# de caminho, ao lado de OUTRAS aplicações Django no mesmo host. O proxy remove
+# o atributo Domain, então todos os cookies caem no host do proxy com `Path=/`:
+# com os nomes default eles COLIDEM e a última aplicação a responder sobrescreve
+# o cookie das outras.
+#   - csrftoken trocado -> POST falha com "CSRF token ... incorrect" (403)
+#   - sessionid trocado -> a sessão deixa de ser reconhecida e cai no login
+#
+# Nome próprio é a recomendação do próprio Django para várias instâncias no
+# mesmo host, e vale também no acesso direto. Configurável para quem precisa
+# manter o nome antigo.
+SESSION_COOKIE_NAME = os.getenv("BOTAPP_SESSION_COOKIE_NAME", "botapp_sessionid")
+CSRF_COOKIE_NAME = os.getenv("BOTAPP_CSRF_COOKIE_NAME", "botapp_csrftoken")
+
 PORT_ADMIN = os.getenv("BOTAPP_PORT_ADMIN", 8000)
 DATABASE_SCHEMA = os.getenv("PG_BOTAPP_SCHEMA", 'botapp_schema')
 

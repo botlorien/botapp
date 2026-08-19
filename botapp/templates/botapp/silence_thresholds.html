@@ -196,8 +196,9 @@
 
 <script>
   function getCsrfCookie() {
-    const m = document.cookie.match(/csrftoken=([^;]+)/);
-    return m ? m[1] : '';
+    // token do servidor (ver base.html): não depende do nome do cookie
+    return (typeof botappCsrf === 'function') ? botappCsrf()
+                                             : (window.BOTAPP_CSRF || '');
   }
 
   function getSelectedIds() {
