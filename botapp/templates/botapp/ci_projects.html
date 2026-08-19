@@ -10,9 +10,26 @@
       <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
         <i class="bi bi-list-ul text-sky-400"></i> Projetos de CI
       </h1>
-      <p class="text-slate-400 mt-1">{{ total }} projeto(s) no filtro atual.</p>
+      <p class="text-slate-400 mt-1">
+        {{ total }} projeto(s) no filtro atual.
+        {% if ultima_descoberta %}
+        <span class="text-slate-500 text-sm">· repositórios verificados
+          {{ ultima_descoberta|timesince }} atrás</span>
+        {% endif %}
+      </p>
     </div>
-    <a href="{% url 'ci_overview' %}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Visão geral</a>
+    <div class="flex items-center gap-2 flex-wrap">
+      {% if pode_editar %}
+      <form method="post" action="{% url 'ci_discover_now' %}">
+        {% csrf_token %}
+        <input type="hidden" name="voltar" value="ci_projects">
+        <button class="btn-ghost whitespace-nowrap" title="procura repositórios novos agora">
+          <i class="bi bi-arrow-repeat"></i> Sincronizar agora
+        </button>
+      </form>
+      {% endif %}
+      <a href="{% url 'ci_overview' %}" class="btn-ghost whitespace-nowrap"><i class="bi bi-arrow-left"></i> Visão geral</a>
+    </div>
   </div>
 
   <form method="get" class="fx-header p-4 rounded-xl flex flex-wrap items-end gap-3">
@@ -103,7 +120,15 @@
           </tr>
           {% empty %}
           <tr><td colspan="6" class="text-slate-400 py-6 text-center">
-            Nenhum projeto sincronizado ainda. Rode <code>manage.py sync_ci --discovery</code>.
+            {% if nada_sincronizado %}
+              Nenhum projeto sincronizado ainda.
+              {% if pode_editar %}Use <strong>Sincronizar agora</strong> para buscar os repositórios.{% endif %}
+            {% elif tem_filtro %}
+              Nenhum projeto corresponde a este filtro.
+              {% if pode_editar %}Se o repositório é novo, use <strong>Sincronizar agora</strong>.{% endif %}
+            {% else %}
+              Nenhum projeto para exibir.
+            {% endif %}
           </td></tr>
           {% endfor %}
         </tbody>

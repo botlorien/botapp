@@ -128,8 +128,14 @@ def _duracao(segundos):
 # Descoberta: projetos e agendamentos
 # ═══════════════════════════════════════════════════════════════════════════
 
-def sync_projects(connection, cliente=None):
+def sync_projects(connection, cliente=None, com_agendamentos=True):
     """Descobre projetos do namespace e os agendamentos de cada um.
+
+    `com_agendamentos=False` faz a passada RÁPIDA: a lista de projetos custa
+    uma chamada por página (3 para ~200 projetos), enquanto os agendamentos
+    custam UMA CHAMADA POR PROJETO. Essa diferença é o que permite um botão
+    "sincronizar agora" que responde em segundos — quem acabou de criar um
+    repositório quer vê-lo na tela, não esperar o ciclo completo.
 
     Devolve dict com contadores. Falha de UM projeto não aborta o ciclo.
     """
@@ -150,6 +156,8 @@ def sync_projects(connection, cliente=None):
         vistos.append(projeto.id)
         criados += int(novo)
         atualizados += int(not novo)
+        if not com_agendamentos:
+            continue
         try:
             agendamentos += _sync_schedules(cliente, projeto)
         except (CIError, CIConfigError) as e:
@@ -159,11 +167,16 @@ def sync_projects(connection, cliente=None):
             projeto.save(update_fields=['last_sync_error'])
             logger.warning('agendamentos de %s falharam: %s', projeto.path, e)
 
-    connection.last_discovery_at = timezone.now()
     connection.last_sync_at = timezone.now()
     connection.last_sync_status = CIConnection.SyncStatus.OK
-    connection.save(update_fields=['last_discovery_at', 'last_sync_at',
-                                   'last_sync_status'])
+    campos = ['last_sync_at', 'last_sync_status']
+    if com_agendamentos:
+        # só a passada COMPLETA reinicia o relógio. Se a rápida marcasse
+        # last_discovery_at, um clique no botão adiaria os agendamentos por
+        # mais um intervalo inteiro — e ninguém veria isso acontecer.
+        connection.last_discovery_at = timezone.now()
+        campos.append('last_discovery_at')
+    connection.save(update_fields=campos)
     return {'projetos_criados': criados, 'projetos_atualizados': atualizados,
             'agendamentos': agendamentos, 'vistos': len(vistos)}
 

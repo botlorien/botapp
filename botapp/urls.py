@@ -47,6 +47,7 @@ urlpatterns = [
          name='ci_connection_test'),
     path('ci/connections/<int:connection_id>/sync/', ci_views.connection_sync,
          name='ci_connection_sync'),
+    path('ci/discover/', ci_views.discover_now, name='ci_discover_now'),
     path('ci/projects/', ci_views.project_list, name='ci_projects'),
     path('ci/projects/<int:project_id>/', ci_views.project_detail,
          name='ci_project_detail'),

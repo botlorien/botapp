@@ -12,10 +12,21 @@
       </h1>
       <p class="text-slate-400 mt-1">
         Projetos, agendamentos e execuções observados no servidor de CI.
+        {% if ultima_descoberta %}<span class="text-slate-500 text-sm">·
+        repositórios verificados {{ ultima_descoberta|timesince }} atrás</span>{% endif %}
       </p>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
-      <a href="{% url 'ci_projects' %}" class="btn-ghost">
+      {% if pode_editar %}
+      <form method="post" action="{% url 'ci_discover_now' %}">
+        {% csrf_token %}
+        <input type="hidden" name="voltar" value="ci_overview">
+        <button class="btn-ghost whitespace-nowrap" title="procura repositórios novos agora">
+          <i class="bi bi-arrow-repeat"></i> Sincronizar agora
+        </button>
+      </form>
+      {% endif %}
+      <a href="{% url 'ci_projects' %}" class="btn-ghost whitespace-nowrap">
         <i class="bi bi-list-ul"></i> Projetos
       </a>
       {% if user.is_staff %}

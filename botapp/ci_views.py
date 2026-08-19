@@ -103,11 +103,59 @@ def project_list(request):
     qs = qs.order_by('-last_pipeline_at', 'path')
     paginator = Paginator(qs, 50)
     pagina = paginator.get_page(request.GET.get('page'))
+    # sem filtro e sem resultado = nunca sincronizou; com filtro e sem
+    # resultado = o filtro não casou. A tela dizia a primeira coisa nos dois
+    # casos, e mandava rodar um comando que não era necessário.
+    tem_filtro = bool(busca or status or request.GET.get('monitored')
+                      or request.GET.get('problemas'))
     return render(request, 'botapp/ci_projects.html', {
         'projects': pagina, 'page_obj': pagina, 'total': paginator.count,
         'q': busca, 'status': status,
+        'tem_filtro': tem_filtro,
+        'nada_sincronizado': not CIProject.objects.exists(),
+        'ultima_descoberta': CIConnection.objects.filter(enabled=True)
+                             .order_by('-last_discovery_at')
+                             .values_list('last_discovery_at', flat=True).first(),
         'pode_editar': scoping.pode_editar(request),
     })
+
+
+@login_required
+@require_POST
+def discover_now(request):
+    """Descobre repositórios novos agora, sob demanda.
+
+    Existe porque a descoberta automática roda em intervalo largo (o padrão é
+    diário) e quem acaba de criar um repositório não tem como saber disso —
+    a tela só dizia "nenhum projeto sincronizado", que parecia defeito.
+
+    Passada RÁPIDA de propósito: traz a lista de projetos e pula os
+    agendamentos, que custam uma chamada por projeto. Os agendamentos entram
+    no ciclo completo seguinte.
+    """
+    _exige_ci(request)
+    if not scoping.pode_editar(request):
+        return JsonResponse({'ok': False, 'erro': 'sem permissão'}, status=403)
+
+    from .ci_sync import sync_projects
+    novos = total = 0
+    falhas = []
+    for conexao in CIConnection.objects.filter(enabled=True):
+        try:
+            r = sync_projects(conexao, com_agendamentos=False)
+            novos += r['projetos_criados']
+            total += r['vistos']
+        except (CIError, CIConfigError) as e:
+            falhas.append(f'{conexao.name}: {e}')
+
+    if falhas:
+        messages.error(request, 'Falha ao sincronizar — ' + '; '.join(falhas))
+    elif novos:
+        messages.success(request, f'{novos} repositório(s) novo(s) encontrado(s) '
+                                  f'de {total} verificado(s).')
+    else:
+        messages.info(request, f'Nenhum repositório novo. {total} verificado(s).')
+    return redirect(request.POST.get('voltar') or 'ci_projects')
 
 
 @login_required
@@ -397,5 +445,9 @@ def ci_overview(request):
             project__in=qs, has_masked_error=True).count(),
         'sem_instrumentacao': sem_instrumentacao[:50],
         'situacao': situacao,
+        'pode_editar': scoping.pode_editar(request),
+        'ultima_descoberta': CIConnection.objects.filter(enabled=True)
+                             .order_by('-last_discovery_at')
+                             .values_list('last_discovery_at', flat=True).first(),
         'agora': timezone.now(),
     })
