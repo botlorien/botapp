@@ -101,6 +101,21 @@ class Command(BaseCommand):
                     f'reconciled {fixed} bot(s) com last_execution_at atrasado.'
                 ))
 
+        # Resolve ANTES de detectar, por dois motivos. O obvio: alerta de bot que
+        # ja voltou ao normal poluindo o painel. O grave: a deduplicacao de cada
+        # regra e contra alerta ABERTO do mesmo tipo para o mesmo bot — ou seja,
+        # um alerta que nunca fecha CEGA aquele tipo para aquele bot para sempre,
+        # e a proxima ocorrencia real nao gera alerta nenhum.
+        if not dry:
+            fechados = self._resolver_superados(
+                now, default_silent, spike_window, spike_threshold,
+                hb_threshold, reg_window, reg_multiplier)
+            if fechados:
+                logger.info('check_alerts: %d alerta(s) fechados por condicao '
+                            'superada', fechados)
+                self.stdout.write(self.style.SUCCESS(
+                    f'{fechados} alerta(s) fechados por condição superada.'))
+
         silent_events = self._detect_silent(now, default_silent, dry)
         spike_events = self._detect_error_spike(now, spike_window, spike_threshold, dry)
         heartbeat_events = self._detect_heartbeat_lost(now, hb_threshold, dry)
@@ -124,6 +139,97 @@ class Command(BaseCommand):
             for alert in silent_events + spike_events + heartbeat_events + regression_events:
                 dispatch_alert(alert)
             self.stdout.write(self.style.SUCCESS(f'{total} alertas despachados.'))
+
+    # ------------------------------------------------------------------
+    # Resolução (o contrário das regras: fechar o que já passou)
+    # ------------------------------------------------------------------
+    def _resolver_superados(self, now, default_silent, spike_window,
+                            spike_threshold, hb_threshold, reg_window,
+                            reg_multiplier):
+        """Fecha alerta de bot cuja condição já passou.
+
+        Nenhuma das quatro regras fechava o que criou — só deduplicava contra
+        alerta aberto. Medido em 20/08/2026: o painel acumulava alerta de bot
+        que já tinha voltado ao normal, e a única saída era clicar "resolver"
+        em cada um. Pior que a poluição: enquanto o alerta velho fica aberto, a
+        deduplicação impede alerta novo do mesmo tipo para o mesmo bot, então a
+        reincidência passa em silêncio.
+
+        Conservador: só fecha o que consegue julgar como normal AGORA. Quando
+        não há como julgar (bot ausente, amostra insuficiente de duração), o
+        alerta fica aberto.
+        """
+        fechados = 0
+        abertos = Alert.objects.filter(
+            resolved_at__isnull=True,
+            type__in=[Alert.Type.SILENT_BOT, Alert.Type.ERROR_SPIKE,
+                      Alert.Type.HEARTBEAT_LOST,
+                      Alert.Type.DURATION_REGRESSION],
+        ).select_related('bot')
+        for alerta in abertos:
+            if alerta.bot is None:
+                continue
+            if not self._condicao_superada(
+                    alerta, alerta.bot, now, default_silent, spike_window,
+                    spike_threshold, hb_threshold, reg_window, reg_multiplier):
+                continue
+            alerta.resolved_at = now
+            alerta.payload = {**(alerta.payload or {}),
+                              'fechado_por': 'condicao_superada'}
+            alerta.save(update_fields=['resolved_at', 'payload'])
+            fechados += 1
+            logger.info('alerta %s (%s) do bot "%s" fechado: condição superada',
+                        alerta.id, alerta.type, alerta.bot.name)
+        return fechados
+
+    def _condicao_superada(self, alerta, bot, now, default_silent, spike_window,
+                           spike_threshold, hb_threshold, reg_window,
+                           reg_multiplier):
+        """Espelha a condição de cada regra, negada. Mesmos thresholds."""
+        if alerta.type == Alert.Type.SILENT_BOT:
+            segundos = bot.effective_silence_threshold_seconds(default_silent)
+            return (bot.last_execution_at is not None
+                    and bot.last_execution_at > now - timedelta(seconds=segundos))
+
+        if alerta.type == Alert.Type.HEARTBEAT_LOST:
+            return not TaskLog.objects.filter(
+                task__bot_id=bot.id, status=TaskLog.Status.STARTED,
+                start_time__lt=now - timedelta(hours=hb_threshold)).exists()
+
+        if alerta.type == Alert.Type.ERROR_SPIKE:
+            falhas = TaskLog.objects.filter(
+                task__bot_id=bot.id, status=TaskLog.Status.FAILED,
+                start_time__gte=now - timedelta(minutes=spike_window)).count()
+            return falhas < spike_threshold
+
+        if alerta.type == Alert.Type.DURATION_REGRESSION:
+            julgou_alguma, em_regressao = self._duracao_do_bot(
+                bot, reg_window, reg_multiplier)
+            # amostra insuficiente = sem como julgar: NÃO fecha
+            return julgou_alguma and not em_regressao
+
+        return False
+
+    def _duracao_do_bot(self, bot, window, multiplier):
+        """(julgou_alguma_task, alguma_em_regressao) — mesmo cálculo da regra."""
+        julgou = False
+        for task in Task.objects.filter(bot_id=bot.id,
+                                        expected_duration_seconds__isnull=False):
+            esperado = task.expected_duration_seconds
+            if not esperado:
+                continue
+            recentes = (TaskLog.objects
+                        .filter(task_id=task.id, status=TaskLog.Status.COMPLETED,
+                                duration__isnull=False)
+                        .order_by('-start_time')
+                        .values_list('duration', flat=True)[:window])
+            duracoes = [d.total_seconds() for d in recentes if d is not None]
+            if len(duracoes) < max(3, window // 4):
+                continue
+            julgou = True
+            if sum(duracoes) / len(duracoes) >= esperado * multiplier:
+                return True, True
+        return julgou, False
 
     # ------------------------------------------------------------------
     # Regras

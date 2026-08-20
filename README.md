@@ -320,6 +320,28 @@ Rotas principais (prefixadas por `/` quando em modo standalone):
 | `heartbeat_lost`      | Log com `status='started'` mais antigo que N horas.                      | Severidade fixa por idade                      |
 | `duration_regression` | Média das últimas N execuções acima de `expected_duration_seconds × k`.  | `duração_média / expected`                     |
 
+### Fechamento automático
+
+Cada rodada de `check_alerts` **fecha** o alerta cuja condição já passou, antes de
+detectar de novo: bot que voltou a executar, execução travada que encerrou, janela
+do pico que passou, duração que voltou ao esperado. O alerta fechado assim recebe
+`payload.fechado_por = "condicao_superada"`.
+
+Isso não é só limpeza de painel. A deduplicação de cada regra é contra alerta
+**aberto** do mesmo tipo para o mesmo bot — então um alerta que nunca fecha cega
+aquele tipo para aquele bot, e a próxima ocorrência real não gera alerta nenhum.
+
+O fechamento é conservador: só fecha o que consegue julgar como normal agora.
+Sem como julgar (bot ausente, amostra insuficiente de duração), o alerta fica
+aberto. `--dry-run` não fecha nada.
+
+Os alertas de CI seguem a mesma ideia, em `ci_sync`: `pipeline_failed` e
+`pipeline_masked_error` fecham quando um pipeline posterior do mesmo projeto
+passa (`resolver_alertas_obsoletos`), e `schedule_without_run` /
+`project_never_ran` fecham quando o projeto volta a executar dentro do intervalo
+do cron (`resolver_agendamentos_em_dia`, `payload.fechado_por =
+"agendamento_em_dia"`).
+
 ### Dispatcher (`notifiers.py`)
 
 Ao criar um alerta, `check_alerts` chama `dispatch_alert(alert)` que envia para todos os canais configurados. Cada canal é **opt-in**: se a env var correspondente não estiver definida, o canal é silenciosamente ignorado. Uma falha em um canal não bloqueia os outros.
