@@ -522,42 +522,128 @@ def resolver_alertas_obsoletos(connection):
     return resolvidos
 
 
-def avaliar_agendamentos(connection, fator=3):
+def _atraso_do_agendamento(projeto, fator, agora):
+    """(atrasado, ultimo_pipeline, agendamento) para um projeto.
+
+    `atrasado` é None quando não há como julgar — nenhum agendamento ativo, ou
+    cron que o estimador não entende. Isso é diferente de "está em dia", e a
+    distinção importa: só se fecha alerta do que se conseguiu julgar.
+    """
+    ativos = [a for a in projeto.schedules.filter(active=True)
+              if _intervalo_estimado(a.cron) is not None]
+    if not ativos:
+        return None, None, None
+    ultimo = projeto.pipelines.filter(source='schedule').order_by(
+        '-created_at').first()
+    if ultimo is None or not ultimo.created_at:
+        return True, None, ativos[0]
+    for ag in ativos:
+        if (agora - ultimo.created_at) > _intervalo_estimado(ag.cron) * fator:
+            return True, ultimo, ag
+    return False, ultimo, None
+
+
+def avaliar_agendamentos(connection, fator=3, cliente=None):
     """Agendamento ativo cujo último pipeline é antigo demais.
 
     Pega a armadilha real de agendamento que existe, está ativo e simplesmente
     não dispara — o painel de CI mostra tudo "normal" porque não há execução
     falhando; não há execução nenhuma.
+
+    `cliente` é opcional e serve a uma coisa só: o limiar sai do cron GUARDADO,
+    e o cron só era relido na descoberta (24h). Depois de corrigir quatro crons
+    de `*/10`/`*/15` para `0 * * * *` em 20/08/2026, o alerta seguiu medindo
+    contra 30min e disparou de hora em hora — falso positivo por até um dia,
+    sobre bots que estavam rodando. Com cliente, o agendamento do projeto
+    candidato é relido ANTES de abrir o alerta: uma chamada por candidato, não
+    por projeto monitorado.
     """
     alertas = 0
     agora = timezone.now()
     for projeto in connection.projects.filter(monitored=True, archived=False,
                                               local_archived=False):
-        for ag in projeto.schedules.filter(active=True):
-            ultimo = projeto.pipelines.filter(source='schedule').order_by(
-                '-created_at').first()
-            intervalo = _intervalo_estimado(ag.cron)
-            if intervalo is None:
-                continue
-            limite = intervalo * fator
-            if ultimo is None:
-                alertas += _abrir_alerta(
-                    Alert.Type.PROJECT_NEVER_RAN, projeto,
-                    f'{projeto.path} tem agendamento ativo ({ag.cron}) e nenhuma '
-                    f'execução agendada registrada',
-                    Alert.Severity.MEDIUM,
-                    {'project_id': projeto.id, 'project_path': projeto.path,
-                     'cron': ag.cron})
-            elif ultimo.created_at and (agora - ultimo.created_at) > limite:
-                horas = int((agora - ultimo.created_at).total_seconds() // 3600)
-                alertas += _abrir_alerta(
-                    Alert.Type.SCHEDULE_WITHOUT_RUN, projeto,
-                    f'{projeto.path}: agendamento ativo ({ag.cron}) sem execução '
-                    f'há {horas}h — o agendamento existe e não está disparando',
-                    Alert.Severity.MEDIUM,
-                    {'project_id': projeto.id, 'project_path': projeto.path,
-                     'cron': ag.cron, 'horas_sem_run': horas})
+        atrasado, ultimo, ag = _atraso_do_agendamento(projeto, fator, agora)
+        if not atrasado:
+            continue
+        if cliente is not None:
+            try:
+                _sync_schedules(cliente, projeto)
+            except (CIError, CIConfigError) as e:
+                # releitura é melhoria de precisão, não requisito: falhar aqui
+                # não pode calar o alerta nem derrubar o ciclo
+                logger.warning('não reli o agendamento de %s antes do alerta: %s',
+                               projeto.path, e)
+            else:
+                atrasado, ultimo, ag = _atraso_do_agendamento(projeto, fator, agora)
+                if not atrasado:
+                    logger.info('alerta de agendamento evitado em %s: o cron '
+                                'guardado estava velho', projeto.path)
+                    continue
+        if ultimo is None:
+            alertas += _abrir_alerta(
+                Alert.Type.PROJECT_NEVER_RAN, projeto,
+                f'{projeto.path} tem agendamento ativo ({ag.cron}) e nenhuma '
+                f'execução agendada registrada',
+                Alert.Severity.MEDIUM,
+                {'project_id': projeto.id, 'project_path': projeto.path,
+                 'cron': ag.cron})
+        else:
+            horas = int((agora - ultimo.created_at).total_seconds() // 3600)
+            alertas += _abrir_alerta(
+                Alert.Type.SCHEDULE_WITHOUT_RUN, projeto,
+                f'{projeto.path}: agendamento ativo ({ag.cron}) sem execução '
+                f'há {horas}h — o agendamento existe e não está disparando',
+                Alert.Severity.MEDIUM,
+                {'project_id': projeto.id, 'project_path': projeto.path,
+                 'cron': ag.cron, 'horas_sem_run': horas})
     return alertas
+
+
+def resolver_agendamentos_em_dia(connection, fator=3):
+    """Fecha alerta de agendamento cujo projeto voltou a executar no intervalo.
+
+    Sem isto, SCHEDULE_WITHOUT_RUN e PROJECT_NEVER_RAN ficam abertos PARA
+    SEMPRE: `resolver_alertas_obsoletos` e o comando `reconcile_ci_alerts` só
+    tratam alerta de pipeline, e `fechar_alertas_de_inativos` só fecha o de
+    projeto arquivado. Medido em 20/08/2026: quatro alertas seguiram abertos
+    horas depois de os bots voltarem a rodar de hora em hora, e só sairiam do
+    painel com alguém clicando "resolver" — que é justamente o clique que faz o
+    operador desconfiar do painel inteiro.
+
+    Conservador de propósito: só fecha o que conseguiu julgar como EM DIA.
+    Projeto sem agendamento ativo, ou com cron que o estimador não entende,
+    fica como está.
+    """
+    from django.utils import timezone as tz
+    agora = tz.now()
+    abertos = list(Alert.objects.filter(
+        type__in=[Alert.Type.SCHEDULE_WITHOUT_RUN, Alert.Type.PROJECT_NEVER_RAN],
+        resolved_at__isnull=True))
+    if not abertos:
+        return 0
+    por_projeto = {}
+    for alerta in abertos:
+        pid = (alerta.payload or {}).get('project_id')
+        if pid:
+            por_projeto.setdefault(pid, []).append(alerta)
+    if not por_projeto:
+        return 0
+    resolvidos = 0
+    for projeto in connection.projects.filter(id__in=por_projeto,
+                                              archived=False,
+                                              local_archived=False):
+        atrasado, _, _ = _atraso_do_agendamento(projeto, fator, agora)
+        if atrasado is not False:
+            continue
+        for alerta in por_projeto[projeto.id]:
+            alerta.resolved_at = agora
+            alerta.payload = {**(alerta.payload or {}),
+                              'fechado_por': 'agendamento_em_dia'}
+            alerta.save(update_fields=['resolved_at', 'payload'])
+            resolvidos += 1
+            logger.info('alerta %s resolvido: %s voltou a executar dentro do '
+                        'intervalo do cron', alerta.id, projeto.path)
+    return resolvidos
 
 
 def _intervalo_estimado(cron):
@@ -610,7 +696,12 @@ def sync_connection(connection, forcar_descoberta=False):
         # alerta que importa
         resultado['alertas_resolvidos'] = resolver_alertas_obsoletos(connection)
         resultado['alertas_de_inativos'] = fechar_alertas_de_inativos(connection)
-        resultado['alertas_agendamento'] = avaliar_agendamentos(connection)
+        resultado['alertas_agendamento'] = avaliar_agendamentos(
+            connection, cliente=cliente)
+        # depois de avaliar, e não antes: a avaliação relê o cron do candidato,
+        # então o resolvedor já julga com o cron certo no mesmo ciclo
+        resultado['alertas_agendamento_resolvidos'] = resolver_agendamentos_em_dia(
+            connection)
 
         connection.last_sync_at = timezone.now()
         connection.last_sync_status = CIConnection.SyncStatus.OK

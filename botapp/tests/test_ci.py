@@ -327,6 +327,151 @@ class TestAgendamentoSemExecucao(BaseCI):
             Alert.objects.filter(type=Alert.Type.PROJECT_NEVER_RAN).exists())
 
 
+    def test_alerta_de_agendamento_fecha_quando_o_bot_volta_a_executar(self):
+        """Sem isto o alerta fica aberto PARA SEMPRE.
+
+        Medido em 20/08/2026: quatro alertas seguiram abertos horas depois de os
+        bots voltarem a rodar de hora em hora, porque nem
+        `resolver_alertas_obsoletos` nem o `reconcile_ci_alerts` tratam
+        SCHEDULE_WITHOUT_RUN (os dois só olham alerta de pipeline). Só saía do
+        painel com alguém clicando "resolver".
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from botapp.ci_sync import resolver_agendamentos_em_dia
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(
+            connection=conexao, external_id=7, path='g/proj', name='proj')
+        projeto.schedules.create(external_id=1, cron='0 * * * *', active=True)
+        # execução recente: dentro do limite (1h de cron x fator 3 = 3h)
+        CIPipeline.objects.create(
+            project=projeto, external_id=1, status='success', source='schedule',
+            created_at=timezone.now() - timedelta(minutes=62))
+        alerta = Alert.objects.create(
+            type=Alert.Type.SCHEDULE_WITHOUT_RUN, severity=Alert.Severity.MEDIUM,
+            message='sem execução', payload={'project_id': projeto.id})
+
+        self.assertEqual(resolver_agendamentos_em_dia(conexao), 1)
+        alerta.refresh_from_db()
+        self.assertIsNotNone(alerta.resolved_at)
+        self.assertEqual(alerta.payload.get('fechado_por'), 'agendamento_em_dia')
+
+    def test_project_never_ran_fecha_quando_aparece_execucao(self):
+        from django.utils import timezone
+
+        from botapp.ci_sync import resolver_agendamentos_em_dia
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(
+            connection=conexao, external_id=7, path='g/proj', name='proj')
+        projeto.schedules.create(external_id=1, cron='0 * * * *', active=True)
+        CIPipeline.objects.create(
+            project=projeto, external_id=1, status='success', source='schedule',
+            created_at=timezone.now())
+        alerta = Alert.objects.create(
+            type=Alert.Type.PROJECT_NEVER_RAN, severity=Alert.Severity.MEDIUM,
+            message='nunca executou', payload={'project_id': projeto.id})
+
+        self.assertEqual(resolver_agendamentos_em_dia(conexao), 1)
+        alerta.refresh_from_db()
+        self.assertIsNotNone(alerta.resolved_at)
+
+    def test_nao_fecha_alerta_de_projeto_ainda_atrasado(self):
+        """Fechar cedo é pior que não fechar: esconderia bot realmente parado."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from botapp.ci_sync import resolver_agendamentos_em_dia
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(
+            connection=conexao, external_id=7, path='g/proj', name='proj')
+        projeto.schedules.create(external_id=1, cron='0 * * * *', active=True)
+        CIPipeline.objects.create(
+            project=projeto, external_id=1, status='success', source='schedule',
+            created_at=timezone.now() - timedelta(hours=9))
+        alerta = Alert.objects.create(
+            type=Alert.Type.SCHEDULE_WITHOUT_RUN, severity=Alert.Severity.MEDIUM,
+            message='sem execução', payload={'project_id': projeto.id})
+
+        self.assertEqual(resolver_agendamentos_em_dia(conexao), 0)
+        alerta.refresh_from_db()
+        self.assertIsNone(alerta.resolved_at)
+
+    def test_cron_desatualizado_no_cache_nao_gera_alerta(self):
+        """O limiar vem do cron GUARDADO, relido só na descoberta (24h).
+
+        Medido em 20/08/2026: crons corrigidos de `*/10` para `0 * * * *`, e o
+        alerta seguiu medindo contra 30min (10min x fator 3) e disparou toda
+        hora. Antes de abrir, relê o agendamento deste projeto no servidor.
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from botapp.ci_sync import avaliar_agendamentos
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(
+            connection=conexao, external_id=7, path='g/proj', name='proj')
+        projeto.schedules.create(external_id=1, cron='*/10 * * * *', active=True)
+        CIPipeline.objects.create(
+            project=projeto, external_id=1, status='success', source='schedule',
+            created_at=timezone.now() - timedelta(minutes=62))
+        # o servidor já diz a verdade: cron horário
+        ServidorFalso.rotas = {
+            '/api/v4/projects/7/pipeline_schedules': (
+                [{'id': 1, 'cron': '0 * * * *', 'active': True,
+                  'description': 'horario'}], {}),
+        }
+
+        self.assertEqual(avaliar_agendamentos(conexao, cliente=self.cliente()), 0)
+        self.assertFalse(Alert.objects.filter(
+            type=Alert.Type.SCHEDULE_WITHOUT_RUN).exists())
+        self.assertEqual(projeto.schedules.get(external_id=1).cron, '0 * * * *')
+
+    def test_alerta_abre_quando_o_cron_do_servidor_tambem_estoura(self):
+        """A releitura não pode neutralizar o alerta de verdade."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from botapp.ci_sync import avaliar_agendamentos
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(
+            connection=conexao, external_id=7, path='g/proj', name='proj')
+        projeto.schedules.create(external_id=1, cron='0 * * * *', active=True)
+        CIPipeline.objects.create(
+            project=projeto, external_id=1, status='success', source='schedule',
+            created_at=timezone.now() - timedelta(hours=9))
+        ServidorFalso.rotas = {
+            '/api/v4/projects/7/pipeline_schedules': (
+                [{'id': 1, 'cron': '0 * * * *', 'active': True,
+                  'description': 'horario'}], {}),
+        }
+
+        self.assertEqual(avaliar_agendamentos(conexao, cliente=self.cliente()), 1)
+        self.assertTrue(Alert.objects.filter(
+            type=Alert.Type.SCHEDULE_WITHOUT_RUN).exists())
+
+    def test_avaliar_sem_cliente_continua_funcionando(self):
+        """Chamada antiga (sem cliente) não pode quebrar nem tentar rede."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from botapp.ci_sync import avaliar_agendamentos
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(
+            connection=conexao, external_id=7, path='g/proj', name='proj')
+        projeto.schedules.create(external_id=1, cron='0 * * * *', active=True)
+        CIPipeline.objects.create(
+            project=projeto, external_id=1, status='success', source='schedule',
+            created_at=timezone.now() - timedelta(hours=9))
+        ServidorFalso.rotas = {}
+        self.assertEqual(avaliar_agendamentos(conexao), 1)
+
+
 class TestProgressoECusto(BaseCI):
     def test_primeiro_ciclo_puxa_menos_por_projeto(self):
         """Sem cursor, o limite é o reduzido — senão o primeiro ciclo leva horas."""
