@@ -335,6 +335,18 @@ O fechamento é conservador: só fecha o que consegue julgar como normal agora.
 Sem como julgar (bot ausente, amostra insuficiente de duração), o alerta fica
 aberto. `--dry-run` não fecha nada.
 
+Antes de tudo isso, cada rodada **encerra execução morta**: `TaskLog` preso em
+`started` por mais de `BOTAPP_ORPHAN_TASKLOG_HOURS` (default 24) vira `failed`
+com `exception_type='ProcessoMorto'`. O `@task` fecha o log no `finally` até
+quando a task levanta exceção — log eternamente em `started` significa que o
+processo morreu sem passar por ali (container derrubado, OOM, `compose down`,
+job cancelado). Sem esse encerramento o `heartbeat_lost` daquele bot nunca se
+resolve e, pela deduplicação, tampa o próximo alerta do mesmo tipo. O limiar é
+deliberadamente maior que o do `heartbeat_lost` (6h): na janela entre os dois o
+alerta deve aparecer, porque ali ainda pode ser job de verdade travado.
+`end_time` fica nulo — a hora da morte é desconhecida, e gravar `now` inflaria a
+duração com o tempo que o registro passou órfão.
+
 Os alertas de CI seguem a mesma ideia, em `ci_sync`: `pipeline_failed` e
 `pipeline_masked_error` fecham quando um pipeline posterior do mesmo projeto
 passa (`resolver_alertas_obsoletos`), e `schedule_without_run` /

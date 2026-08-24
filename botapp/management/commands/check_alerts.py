@@ -21,6 +21,7 @@ Variáveis de ambiente:
   BOTAPP_ERROR_SPIKE_WINDOW_MINUTES        (default 60)
   BOTAPP_ERROR_SPIKE_THRESHOLD             (default 5)
   BOTAPP_HEARTBEAT_LOST_THRESHOLD_HOURS    (default 6)
+  BOTAPP_ORPHAN_TASKLOG_HOURS              (default 24 — fecha execucao morta)
   BOTAPP_DURATION_REGRESSION_MULTIPLIER    (default 1.5)
   BOTAPP_DURATION_REGRESSION_WINDOW        (default 20 — últimas N execuções)
 """
@@ -85,6 +86,7 @@ class Command(BaseCommand):
         spike_window = int(os.environ.get('BOTAPP_ERROR_SPIKE_WINDOW_MINUTES', '60'))
         spike_threshold = int(os.environ.get('BOTAPP_ERROR_SPIKE_THRESHOLD', '5'))
         hb_threshold = int(os.environ.get('BOTAPP_HEARTBEAT_LOST_THRESHOLD_HOURS', '6'))
+        orfao_horas = int(os.environ.get('BOTAPP_ORPHAN_TASKLOG_HOURS', '24'))
         reg_multiplier = float(os.environ.get('BOTAPP_DURATION_REGRESSION_MULTIPLIER', '1.5'))
         reg_window = int(os.environ.get('BOTAPP_DURATION_REGRESSION_WINDOW', '20'))
 
@@ -100,6 +102,17 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.NOTICE(
                     f'reconciled {fixed} bot(s) com last_execution_at atrasado.'
                 ))
+
+        # Encerra execucao morta ANTES de tudo: enquanto ela fica em `started`, o
+        # heartbeat_lost do bot nao tem como se resolver.
+        if not dry:
+            orfaos = self._fechar_orfaos(now, orfao_horas)
+            if orfaos:
+                logger.info('check_alerts: %d execucao(oes) morta(s) encerrada(s)',
+                            orfaos)
+                self.stdout.write(self.style.WARNING(
+                    f'{orfaos} execução(ões) presa(s) em started há mais de '
+                    f'{orfao_horas}h encerrada(s) como falha.'))
 
         # Resolve ANTES de detectar, por dois motivos. O obvio: alerta de bot que
         # ja voltou ao normal poluindo o painel. O grave: a deduplicacao de cada
@@ -180,6 +193,51 @@ class Command(BaseCommand):
             fechados += 1
             logger.info('alerta %s (%s) do bot "%s" fechado: condição superada',
                         alerta.id, alerta.type, alerta.bot.name)
+        return fechados
+
+    def _fechar_orfaos(self, now, horas):
+        """Encerra TaskLog preso em `started` por mais de `horas`.
+
+        O `@task` fecha o log no `finally` — inclusive quando a task levanta
+        excecao. Log que fica em `started` indefinidamente significa que o
+        PROCESSO morreu sem passar pelo finally: container derrubado, OOM,
+        `compose down`, runner cancelado.
+
+        Medido em 24/08/2026: 9 bots com 47 execucoes nessa situacao, a mais
+        antiga de 4 dias e uma delas com 30 registros do mesmo bot. Enquanto
+        ficam abertas, o heartbeat_lost daquele bot nunca se resolve e, pela
+        deduplicacao (que e contra alerta ABERTO), tampa o proximo alerta do
+        mesmo tipo para o mesmo bot.
+
+        `horas` (24 por default) e deliberadamente MAIOR que o limiar do
+        heartbeat_lost (6): na janela entre os dois o alerta tem de aparecer,
+        porque ali ainda pode ser job de verdade travado. Acima do limite nao
+        ha job legitimo nesta frota -- o mais longo tem timeout de 90 min.
+
+        `end_time` fica NULO de proposito: a hora da morte e desconhecida, e
+        gravar `now` inflaria a duracao com todo o tempo que o registro passou
+        orfao, sujando a metrica de duracao do bot.
+        """
+        corte = now - timedelta(hours=horas)
+        presos = TaskLog.objects.filter(status=TaskLog.Status.STARTED,
+                                        start_time__lt=corte)
+        fechados = 0
+        for log in presos:
+            log.status = TaskLog.Status.FAILED
+            log.exception_type = 'ProcessoMorto'
+            log.error_message = (
+                f'Execucao encerrada automaticamente: ficou em "started" por '
+                f'mais de {horas}h (inicio {log.start_time.isoformat()}), o que '
+                f'significa que o processo morreu sem passar pelo finally do '
+                f'decorator (container derrubado, OOM, compose down ou job '
+                f'cancelado). A hora real do fim e desconhecida, por isso '
+                f'end_time fica nulo.'
+            )
+            log.save(update_fields=['status', 'exception_type', 'error_message'])
+            fechados += 1
+            logger.info('tasklog %s do bot "%s" encerrado: preso em started ha '
+                        'mais de %sh', log.id,
+                        getattr(getattr(log.task, 'bot', None), 'name', '?'), horas)
         return fechados
 
     def _condicao_superada(self, alerta, bot, now, default_silent, spike_window,
