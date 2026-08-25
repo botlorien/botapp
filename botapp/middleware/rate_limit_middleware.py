@@ -33,8 +33,16 @@ class RateLimitMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
+    # Rotas máquina-a-máquina (autenticadas por token) que NÃO devem cair no
+    # limitador anti-brute-force de login. O ingest de alertas recebe lotes
+    # periódicos de um monitor externo (ex.: webhook do Grafana) e um limite de
+    # 3/min o quebraria; a proteção dele é o token, não o rate-limit de login.
+    exempt_paths = ['/api/alerts/ingest']
+
     def __call__(self, request):
         protected_paths = ['/login/', '/accounts/login/', '/api/', '/admin/login/']
+        if any(request.path.startswith(p) for p in self.exempt_paths):
+            return self.get_response(request)
         client_ip = get_client_ip(request)
         request.META['RATELIMIT_KEY'] = client_ip
 

@@ -76,6 +76,11 @@ Todos os três podem ser usados em conjunto ou separadamente.
 - Autenticação `SessionAuthentication` + `BasicAuthentication`.
 - Permissão padrão: `IsAuthenticated`.
 - Rate limiting em endpoints sensíveis via `django-ratelimit`.
+- **Ingest de alertas externos** (`POST /api/alerts/ingest/`): recebe alertas de um
+  monitor de fora (ex.: webhook do Grafana/Alertmanager) e cria/resolve `Alert`s no
+  painel. Máquina-a-máquina (Token/Basic, isento do rate-limit de login); um alerta
+  ou um lote em `{"alerts": [...]}`; dedup idempotente por `fingerprint`; `status`
+  `firing`/`resolved`. Ver a seção [Sistema de alertas](#sistema-de-alertas).
 
 ### Operacional
 - Comandos de gerência para setup, scheduler, limpeza de órfãos e reconciliação.
@@ -304,6 +309,7 @@ Rotas principais (prefixadas por `/` quando em modo standalone):
 | `/explore/export.csv`                         | Exporta o resultado filtrado como CSV.                     |
 | `/admin/`                                     | Django admin.                                              |
 | `/api/`                                       | API REST (ver seção [API REST](#api-rest)).                |
+| `/api/alerts/ingest/`                         | POST — ingest de alertas de monitor externo (Token/Basic). |
 | `/accounts/login/` · `/accounts/logout/`      | Autenticação.                                              |
 | `/accounts/password_reset/…`                  | Fluxo completo de reset por e-mail.                        |
 
@@ -326,6 +332,37 @@ Cada rodada de `check_alerts` **fecha** o alerta cuja condição já passou, ant
 detectar de novo: bot que voltou a executar, execução travada que encerrou, janela
 do pico que passou, duração que voltou ao esperado. O alerta fechado assim recebe
 `payload.fechado_por = "condicao_superada"`.
+
+### Ingest de alertas externos
+
+Além das regras internas, um monitor de fora pode publicar alertas no painel via
+`POST /api/alerts/ingest/` (autenticado por Token DRF ou Basic — máquina-a-máquina,
+isento do rate-limit de login). Aceita um único alerta ou um lote:
+
+```jsonc
+{
+  "alerts": [
+    {
+      "status": "firing",            // firing (default) | resolved
+      "type": "host_disk",           // slug livre, ≤30 chars
+      "severity": "critical",        // low | medium | high | critical (default medium)
+      "message": "Disco cheio em docker01 (92%)",
+      "fingerprint": "grafana-abc123", // chave de dedup (opcional)
+      "bot_name": "bot_x",           // associa a um Bot se existir (opcional)
+      "payload": { "host": "docker01" } // contexto livre (opcional)
+    }
+  ]
+}
+```
+
+- **`firing`** cria o alerta, a menos que já exista um ativo com a mesma chave —
+  `fingerprint` se informado (guardado em `payload.fingerprint`), senão `type` +
+  `message`. É idempotente: um monitor que reenvia enquanto a condição persiste não
+  duplica.
+- **`resolved`** fecha os alertas ativos que casam com a chave.
+- Não dispara notificações (Slack/Discord/e-mail) — o alerta aparecer no painel é a
+  entrega. A resposta traz `{created, resolved, deduped}` (e `errors` + HTTP 207 se
+  algum item do lote for inválido).
 
 Isso não é só limpeza de painel. A deduplicação de cada regra é contra alerta
 **aberto** do mesmo tipo para o mesmo bot — então um alerta que nunca fecha cega

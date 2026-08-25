@@ -1,7 +1,7 @@
 # botapp/serializers.py
 
 from rest_framework import serializers
-from .models import Bot, Task, TaskLog
+from .models import Alert, Bot, Task, TaskLog
 
 
 # Listar campos explicitamente evita dois problemas:
@@ -80,3 +80,42 @@ class TaskLogSerializer(serializers.ModelSerializer):
             'env',
         )
         read_only_fields = ('id',)
+
+
+class AlertIngestSerializer(serializers.Serializer):
+    """Valida um alerta recebido de um monitor externo (ex.: webhook do Grafana).
+
+    Não é um ModelSerializer: a entrada não espelha o model 1:1. `status`
+    controla criar-vs-resolver, `fingerprint` é a chave de deduplicação e vai
+    guardada dentro do `payload` (o model não tem coluna própria — a dedup segue
+    o mesmo padrão de `payload__project_id` já usado pela integração de CI, sem
+    exigir migração de schema). `type` é livre de propósito: este é um pacote
+    genérico e não deve embutir a taxonomia de alertas de nenhum consumidor.
+    """
+
+    STATUS_CHOICES = ('firing', 'resolved')
+
+    status = serializers.ChoiceField(
+        choices=STATUS_CHOICES, default='firing', required=False,
+    )
+    type = serializers.CharField(max_length=30)
+    severity = serializers.ChoiceField(
+        choices=Alert.Severity.values, default=Alert.Severity.MEDIUM, required=False,
+    )
+    message = serializers.CharField()
+    fingerprint = serializers.CharField(
+        max_length=64, required=False, allow_blank=True, default='',
+    )
+    bot_name = serializers.CharField(
+        max_length=255, required=False, allow_blank=True, default='',
+    )
+    payload = serializers.JSONField(required=False, default=dict)
+
+    def validate_payload(self, value):
+        # payload precisa ser um objeto JSON (dict) — a dedup por fingerprint e
+        # o render no dashboard assumem um mapa, não uma lista/escalar.
+        if value in (None, ''):
+            return {}
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('payload deve ser um objeto JSON.')
+        return value

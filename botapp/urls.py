@@ -9,7 +9,7 @@ from django.conf.urls.static import static
 from django.conf import settings
 from django.views.generic.base import RedirectView
 from rest_framework.routers import DefaultRouter
-from .rest_views import BotViewSet, TaskViewSet, TaskLogViewSet
+from .rest_views import BotViewSet, TaskViewSet, TaskLogViewSet, alert_ingest
 from django.conf import settings
 
 router = DefaultRouter()
@@ -24,6 +24,9 @@ urlpatterns = [
     path('sso/', sso_views.sso_login, name='botapp_sso'),
     path('sw.js', views.sw_js, name='sw_js'),
     path('favicon.ico', views.favicon_ico, name='favicon_ico'),
+    # Ingest de alertas de monitores externos (webhook do Grafana etc.);
+    # antes do router para a rota explícita ter precedência sobre /api/.
+    path('api/alerts/ingest/', alert_ingest, name='alert_ingest'),
     path('api/', include(router.urls)),
     path('admin/', admin.site.urls),
     path('bots/', views.bot_list, name='bot_list'),
