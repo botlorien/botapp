@@ -364,6 +364,13 @@ isento do rate-limit de login). Aceita um único alerta ou um lote:
   entrega. A resposta traz `{created, resolved, deduped}` (e `errors` + HTTP 207 se
   algum item do lote for inválido).
 
+Também aceita o **formato nativo do webhook do Grafana/Alertmanager** (itens com
+`labels`/`annotations`): `type` ← `labels.type|alertname` (truncado a 30), `severity`
+normalizada de `critical|warning|info|critico|aviso|…`, `message` ←
+`annotations.summary|description`, `fingerprint` ← `fingerprint`, `status` ← `status`,
+resto no `payload`. Assim o Grafana aponta o webhook direto para cá **sem template de
+payload** — basta a URL e o header `Authorization: Token <chave>`.
+
 Isso não é só limpeza de painel. A deduplicação de cada regra é contra alerta
 **aberto** do mesmo tipo para o mesmo bot — então um alerta que nunca fecha cega
 aquele tipo para aquele bot, e a próxima ocorrência real não gera alerta nenhum.

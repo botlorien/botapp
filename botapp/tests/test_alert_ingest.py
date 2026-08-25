@@ -149,3 +149,70 @@ class AlertIngestTests(TestCase):
         r = self._post({'type': 't', 'message': 'm', 'payload': [1, 2, 3]})
         self.assertEqual(r.status_code, 207)
         self.assertEqual(Alert.objects.count(), 0)
+
+    # ── formato nativo Grafana/Alertmanager ───────────────────────────────────
+    def test_formato_grafana_firing(self):
+        r = self._post({
+            'status': 'firing',
+            'alerts': [{
+                'status': 'firing',
+                'labels': {'type': 'host_disk', 'severity': 'critical', 'host': 'docker01'},
+                'annotations': {'summary': 'Disco / em docker01 acima de 88%'},
+                'fingerprint': 'graf-fp-1',
+                'startsAt': '2026-08-25T20:00:00Z',
+            }],
+        })
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()['created'], 1)
+        a = Alert.objects.get()
+        self.assertEqual(a.type, 'host_disk')
+        self.assertEqual(a.severity, Alert.Severity.CRITICAL)
+        self.assertEqual(a.message, 'Disco / em docker01 acima de 88%')
+        self.assertEqual(a.payload['fingerprint'], 'graf-fp-1')
+        self.assertEqual(a.payload['labels']['host'], 'docker01')
+
+    def test_grafana_severity_pt_e_convencoes(self):
+        casos = {
+            'critico': Alert.Severity.CRITICAL,
+            'aviso': Alert.Severity.HIGH,
+            'warning': Alert.Severity.HIGH,
+            'info': Alert.Severity.LOW,
+            'inexistente': Alert.Severity.MEDIUM,
+        }
+        for i, (sev, esperado) in enumerate(casos.items()):
+            self._post({'alerts': [{
+                'labels': {'type': f't{i}', 'severity': sev},
+                'annotations': {'summary': f'm{i}'},
+                'fingerprint': f'sev-{i}',
+            }]})
+            self.assertEqual(Alert.objects.get(type=f't{i}').severity, esperado, sev)
+
+    def test_grafana_resolved_fecha(self):
+        item = {
+            'labels': {'type': 'host_cpu', 'severity': 'aviso'},
+            'annotations': {'summary': 'CPU alta'},
+            'fingerprint': 'graf-cpu',
+        }
+        self._post({'alerts': [{**item, 'status': 'firing'}]})
+        self.assertEqual(Alert.objects.filter(resolved_at__isnull=True).count(), 1)
+        self._post({'alerts': [{**item, 'status': 'resolved'}]})
+        self.assertEqual(Alert.objects.filter(resolved_at__isnull=True).count(), 0)
+
+    def test_grafana_alertname_fallback_e_truncamento(self):
+        nome_longo = 'x' * 50
+        self._post({'alerts': [{
+            'labels': {'alertname': nome_longo},   # sem 'type' → usa alertname
+            'annotations': {'description': 'via description'},
+            'fingerprint': 'graf-long',
+        }]})
+        a = Alert.objects.get()
+        self.assertEqual(a.type, 'x' * 30)          # truncado a 30
+        self.assertEqual(a.message, 'via description')
+
+    def test_grafana_sem_conflito_com_shape_generico(self):
+        # item com 'type' explícito nunca é tratado como Grafana mesmo com labels
+        self._post({'alerts': [{
+            'type': 'explicito', 'message': 'm', 'labels': {'severity': 'info'},
+        }]})
+        a = Alert.objects.get()
+        self.assertEqual(a.type, 'explicito')

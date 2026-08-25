@@ -92,6 +92,61 @@ class TaskLogViewSet(viewsets.ModelViewSet):
         return qs.filter(task__bot__department__in=deps) if deps is not None else qs
 
 
+_SEVERITY_ALIASES = {
+    # convenções comuns de monitores → enum do Alert
+    'critical': 'critical', 'crit': 'critical', 'page': 'critical', 'fatal': 'critical',
+    'critico': 'critical', 'crítico': 'critical', 'emergency': 'critical',
+    'high': 'high', 'error': 'high', 'err': 'high', 'major': 'high',
+    'warning': 'high', 'warn': 'high', 'aviso': 'high',
+    'medium': 'medium', 'moderate': 'medium', 'minor': 'medium',
+    'low': 'low', 'info': 'low', 'information': 'low', 'notice': 'low', 'none': 'low',
+}
+
+
+def _normalize_severity(value):
+    """Mapeia a severidade de um monitor externo para o enum do Alert (default medium)."""
+    if not value:
+        return Alert.Severity.MEDIUM
+    return _SEVERITY_ALIASES.get(str(value).strip().lower(), Alert.Severity.MEDIUM)
+
+
+def _normalize_external_item(raw):
+    """Converte um alerta no formato Grafana/Alertmanager para o shape genérico.
+
+    Um item do webhook do Grafana/Alertmanager traz `labels`/`annotations` em vez
+    de `type`/`message`. Detecta esse formato (tem labels/annotations e não tem
+    `type`) e traduz: `type` ← labels.type|alertname, `severity` ← labels.severity
+    (normalizada), `message` ← annotations.summary|description, `fingerprint` ←
+    fingerprint, `status` ← status; o resto vira `payload` (contexto). Itens já no
+    shape genérico passam intactos.
+    """
+    if not isinstance(raw, dict):
+        return raw
+    labels = raw.get('labels')
+    annotations = raw.get('annotations')
+    if 'type' in raw or not (isinstance(labels, dict) or isinstance(annotations, dict)):
+        return raw  # já é o shape genérico
+
+    labels = labels if isinstance(labels, dict) else {}
+    annotations = annotations if isinstance(annotations, dict) else {}
+    tipo = (labels.get('type') or labels.get('alertname') or 'external')[:30]
+    message = (annotations.get('summary') or annotations.get('description')
+               or labels.get('alertname') or '(sem mensagem)')
+    payload = {'labels': labels, 'annotations': annotations}
+    for k in ('startsAt', 'endsAt', 'generatorURL', 'valueString', 'values',
+              'dashboardURL', 'panelURL', 'silenceURL'):
+        if raw.get(k):
+            payload[k] = raw[k]
+    return {
+        'status': raw.get('status') or 'firing',
+        'type': tipo,
+        'severity': _normalize_severity(labels.get('severity')),
+        'message': message,
+        'fingerprint': raw.get('fingerprint') or '',
+        'payload': payload,
+    }
+
+
 def _active_alert_qs(tipo, fingerprint, message):
     """Alertas ativos (não resolvidos) que casam com este item de ingest.
 
@@ -123,6 +178,13 @@ def alert_ingest(request):
     `fingerprint` (chave de dedup, opcional), `bot_name` (associa a um Bot se
     existir, opcional) e `payload` (objeto de contexto livre, opcional).
 
+    Também aceita o formato nativo do webhook do Grafana/Alertmanager (itens com
+    `labels`/`annotations`): são traduzidos para o shape acima automaticamente
+    (`type` ← labels.type|alertname, `severity` normalizada de
+    critical/warning/info/critico/aviso/…, `message` ← annotations.summary), então
+    o Grafana só precisa apontar o webhook para cá com o header de auth — sem
+    template de payload.
+
     `firing` cria o alerta se não houver um ativo com a mesma chave (idempotente:
     o Grafana reenvia enquanto a condição persiste). `resolved` fecha os alertas
     ativos que casam com a chave. Não dispara notificações (Slack/Discord/e-mail):
@@ -150,6 +212,7 @@ def alert_ingest(request):
     created = resolved = deduped = 0
     errors = []
     for i, raw in enumerate(items):
+        raw = _normalize_external_item(raw)
         ser = AlertIngestSerializer(data=raw if isinstance(raw, dict) else {})
         if not ser.is_valid():
             errors.append({'index': i, 'errors': ser.errors})
