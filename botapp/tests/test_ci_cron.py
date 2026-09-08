@@ -1,10 +1,10 @@
 """Estimativa de intervalo do cron — o que decide o limiar de schedule_without_run.
 
-Alerta #907 (05/09/2026): `carvalima-group/bot_create_bitrix_comercial_activity`
-tem agendamento MENSAL (`0 6 15 * *`, dia 15 às 06:00) e rodou normalmente em
-15/08. O estimador não reconhecia dia-do-mês fixo e caía no fallback semanal,
-então o limiar virou 7d × 3 = 21d = as "504h sem execução" do alerta — sobre um
-bot que estava em dia e cuja próxima execução era 15/09.
+Caso real (05/09/2026): um projeto com agendamento MENSAL (`0 6 15 * *`,
+dia 15 às 06:00) rodou normalmente no dia 15 do mês anterior. O estimador não
+reconhecia dia-do-mês fixo e caía no fallback semanal, então o limiar virou
+7d × 3 = 21d — e o alerta abriu com "504h sem execução" sobre um bot que
+estava em dia e cuja próxima execução era o dia 15 seguinte.
 
 O estimador não precisa ser um parser de cron completo; precisa é NÃO subestimar
 o intervalo, porque subestimar gera alerta falso, e alerta falso aberto cega a
