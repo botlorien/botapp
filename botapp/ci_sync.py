@@ -648,11 +648,34 @@ def resolver_agendamentos_em_dia(connection, fator=3):
 
 def _intervalo_estimado(cron):
     """Intervalo aproximado de um cron de 5 campos. Só o suficiente para dizer
-    "faz tempo demais" — não é um parser de cron completo, e não precisa ser."""
+    "faz tempo demais" — não é um parser de cron completo, e não precisa ser.
+
+    Erra para MAIS quando está em dúvida: superestimar só atrasa a detecção,
+    enquanto subestimar abre alerta sobre bot que está em dia — e alerta falso
+    aberto cega a próxima ocorrência real, porque a deduplicação é contra
+    alerta ABERTO do mesmo tipo. Foi o que aconteceu com o cron mensal
+    `0 6 15 * *`, lido como semanal (alerta #907, 05/09/2026).
+
+    Os campos de DATA mandam: quem roda dia 15 de cada mês roda uma vez por
+    mês, mesmo que o campo de hora diga "de hora em hora".
+    """
     partes = (cron or '').split()
     if len(partes) != 5:
         return None
     minuto, hora, dia, mes, semana = partes
+
+    if mes != '*':
+        return timedelta(days=max(1, 365 // (mes.count(',') + 1)))
+    if dia.startswith('*/'):
+        try:
+            return timedelta(days=int(dia[2:]))
+        except ValueError:
+            return None
+    if dia != '*':
+        return timedelta(days=max(1, 31 // (dia.count(',') + 1)))
+    if semana != '*':
+        return timedelta(days=7)
+
     if minuto.startswith('*/'):
         try:
             return timedelta(minutes=int(minuto[2:]))
@@ -667,9 +690,7 @@ def _intervalo_estimado(cron):
         return timedelta(hours=1)
     if ',' in hora:
         return timedelta(hours=max(1, 24 // (hora.count(',') + 1)))
-    if dia == '*' and mes == '*' and semana == '*':
-        return timedelta(days=1)
-    return timedelta(days=7)
+    return timedelta(days=1)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
