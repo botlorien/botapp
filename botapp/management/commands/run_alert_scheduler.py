@@ -20,6 +20,8 @@ import time
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
+from botapp.dbconn import renovar_conexoes
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,6 +59,11 @@ class Command(BaseCommand):
 
         while not self._stop:
             start = time.monotonic()
+            # Mesmo motivo do laço de CI: processo longevo não passa pelo ciclo
+            # de request, então guarda a conexão até ela morrer com o banco. Um
+            # laço de alertas girando em falso é pior que a média — é justamente
+            # ele quem deveria avisar que algo parou. Ver `botapp/dbconn.py`.
+            renovar_conexoes()
             try:
                 call_command('check_alerts')
             except Exception:

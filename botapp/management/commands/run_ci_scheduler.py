@@ -19,6 +19,8 @@ import time
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
+from botapp.dbconn import renovar_conexoes
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,6 +52,13 @@ class Command(BaseCommand):
 
         while not self._parar:
             inicio = time.time()
+            # Este processo vive dias e nunca passa pelo ciclo de request do
+            # Django, que é quem normalmente descarta conexão obsoleta. Se o
+            # servidor de banco reiniciou, o socket está morto e TODO ciclo
+            # falharia — inclusive os seguintes, porque `except` não troca a
+            # conexão. Renovar aqui é o que impede o laço de girar em falso com
+            # o processo vivo e o status gravado como `ok`. Ver `botapp/dbconn.py`.
+            renovar_conexoes()
             try:
                 call_command('sync_ci')
             except Exception:

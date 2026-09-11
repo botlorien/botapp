@@ -11,6 +11,7 @@ from datetime import datetime, timezone as _tz
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 
+from .dbconn import executar_reconectando, renovar_conexoes
 from .models import Task, TaskLog
 
 logger = logging.getLogger(__name__)
@@ -91,6 +92,12 @@ def task(app, func=None):
         trigger_source = "cli"
         manual_trigger = True
 
+        # Processo longevo (bot em ciclos, serviço) mantém a mesma conexão por
+        # dias; se o servidor de banco reiniciou nesse meio-tempo, o socket está
+        # morto e o registro abaixo falharia. Renovar aqui custa desprezível e
+        # evita perder a execução inteira. Ver `botapp/dbconn.py`.
+        renovar_conexoes()
+
         task_obj = app._get_or_create_task(func)
 
         log = TaskLog.objects.create(
@@ -133,7 +140,11 @@ def task(app, func=None):
             raise
         finally:
             log.end_time = timezone.now()
-            log.save()
+            # Tarefa longa pode ter começado com a conexão boa e terminado com
+            # ela morta. Sem a segunda tentativa, a execução fica registrada
+            # como iniciada para sempre — o padrão que gera alerta de execução
+            # órfã. `save` de registro existente é idempotente.
+            executar_reconectando(log.save)
             # Denormalização de Bot.last_* é feita pelo signal post_save em
             # botapp/signals.py (captura tanto @task quanto task_restful).
 
