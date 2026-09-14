@@ -314,15 +314,70 @@ class TestSync(BaseCI):
 
 
 class TestAgendamentoSemExecucao(BaseCI):
+    @staticmethod
+    def _descoberto_em(projeto, quando):
+        """created_at é auto_now_add; só um UPDATE envelhece o projeto."""
+        CIProject.objects.filter(pk=projeto.pk).update(created_at=quando)
+        projeto.refresh_from_db()
+        return projeto
+
     def test_agendamento_ativo_sem_pipeline_alerta(self):
         """A armadilha real: o agendamento existe, está ativo e não dispara."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
         from botapp.ci_sync import avaliar_agendamentos
         conexao = self.conexao()
         projeto = CIProject.objects.create(
             connection=conexao, external_id=7, path='g/proj', name='proj')
         projeto.schedules.create(external_id=1, cron='0 * * * *', active=True)
+        # conhecido há muito mais que o intervalo: já teve chance de disparar
+        self._descoberto_em(projeto, timezone.now() - timedelta(days=2))
         alertas = avaliar_agendamentos(conexao)
         self.assertEqual(alertas, 1)
+        self.assertTrue(
+            Alert.objects.filter(type=Alert.Type.PROJECT_NEVER_RAN).exists())
+
+    def test_agendamento_recem_descoberto_nao_alerta(self):
+        """"Nunca executou" precisa de tempo para virar anomalia.
+
+Um projeto entrou no painel em 10/09/2026 com agendamento MENSAL
+        (`0 4 1 * *`): o primeiro disparo só aconteceria no dia 1º do mês
+        seguinte, e mesmo assim o alerta abriu no mesmo dia. Alerta que nasce
+        sobre um agendamento que ainda não teve a vez é ruído puro — e ruído
+        aberto cega a próxima ocorrência real, porque a deduplicação é contra
+        alerta ABERTO do mesmo tipo.
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from botapp.ci_sync import avaliar_agendamentos
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(
+            connection=conexao, external_id=7, path='g/proj', name='proj')
+        projeto.schedules.create(external_id=1, cron='0 4 1 * *', active=True)
+        self._descoberto_em(projeto, timezone.now() - timedelta(days=4))
+
+        self.assertEqual(avaliar_agendamentos(conexao), 0)
+        self.assertFalse(
+            Alert.objects.filter(type=Alert.Type.PROJECT_NEVER_RAN).exists())
+
+    def test_agendamento_antigo_que_nunca_rodou_ainda_alerta(self):
+        """A guarda é sobre projeto NOVO, não sobre agendamento que não dispara."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from botapp.ci_sync import avaliar_agendamentos
+        conexao = self.conexao()
+        projeto = CIProject.objects.create(
+            connection=conexao, external_id=7, path='g/proj', name='proj')
+        projeto.schedules.create(external_id=1, cron='0 4 1 * *', active=True)
+        self._descoberto_em(projeto, timezone.now() - timedelta(days=120))
+
+        self.assertEqual(avaliar_agendamentos(conexao), 1)
         self.assertTrue(
             Alert.objects.filter(type=Alert.Type.PROJECT_NEVER_RAN).exists())
 

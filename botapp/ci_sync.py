@@ -536,6 +536,16 @@ def _atraso_do_agendamento(projeto, fator, agora):
     ultimo = projeto.pipelines.filter(source='schedule').order_by(
         '-created_at').first()
     if ultimo is None or not ultimo.created_at:
+        # "nunca executou" só vira anomalia depois de o agendamento ter tido a
+        # vez. Em 10/09/2026 um projeto recém-descoberto com cron MENSAL
+        # (`0 4 1 * *`) virou alerta no mesmo dia, sendo que o primeiro disparo
+        # seria só no dia 1º do mês seguinte. Sem data de criação do
+        # agendamento, a referência é desde quando o projeto é conhecido aqui.
+        conhecido_ha = agora - projeto.created_at if projeto.created_at else None
+        novo_demais = conhecido_ha is not None and all(
+            conhecido_ha <= _intervalo_estimado(a.cron) * fator for a in ativos)
+        if novo_demais:
+            return False, None, None
         return True, None, ativos[0]
     for ag in ativos:
         if (agora - ultimo.created_at) > _intervalo_estimado(ag.cron) * fator:
@@ -646,6 +656,52 @@ def resolver_agendamentos_em_dia(connection, fator=3):
     return resolvidos
 
 
+def _valores_do_campo(campo, minimo, maximo):
+    """Valores que um campo de cron cobre, ou None quando não dá para ler.
+
+    Entende lista, faixa e passo (`9,11`, `9-17`, `9-17/2`, `*/2`) — que é do
+    que os agendamentos da casa são feitos. Não entende nome de dia/mês (`MON`,
+    `JAN`): esses voltam None e o chamador decide o palpite conservador.
+    """
+    valores = set()
+    for parte in (campo or '').split(','):
+        passo = 1
+        if '/' in parte:
+            parte, _, texto = parte.partition('/')
+            if not texto.isdigit() or int(texto) < 1:
+                return None
+            passo = int(texto)
+        if parte == '*':
+            inicio, fim = minimo, maximo
+        elif '-' in parte:
+            ini_txt, _, fim_txt = parte.partition('-')
+            if not (ini_txt.isdigit() and fim_txt.isdigit()):
+                return None
+            inicio, fim = int(ini_txt), int(fim_txt)
+        elif parte.isdigit():
+            inicio = fim = int(parte)
+        else:
+            return None
+        if inicio > fim or inicio < minimo or fim > maximo:
+            return None
+        valores.update(range(inicio, fim + 1, passo))
+    return valores or None
+
+
+def _maior_vao(valores, ciclo):
+    """Maior distância entre dois disparos consecutivos, dando a volta no ciclo.
+
+    É o que o limiar precisa tolerar: o bot está em dia enquanto o silêncio
+    couber no maior vão previsto pelo próprio agendamento.
+    """
+    ordenados = sorted(valores)
+    if len(ordenados) == 1:
+        return ciclo
+    vaos = [b - a for a, b in zip(ordenados, ordenados[1:])]
+    vaos.append(ordenados[0] + ciclo - ordenados[-1])
+    return max(vaos)
+
+
 def _intervalo_estimado(cron):
     """Intervalo aproximado de um cron de 5 campos. Só o suficiente para dizer
     "faz tempo demais" — não é um parser de cron completo, e não precisa ser.
@@ -658,6 +714,14 @@ def _intervalo_estimado(cron):
 
     Os campos de DATA mandam: quem roda dia 15 de cada mês roda uma vez por
     mês, mesmo que o campo de hora diga "de hora em hora".
+
+    O intervalo é o MAIOR VÃO entre dois disparos, não a média. Dividir o ciclo
+    pelo número de horários supõe que eles estão espalhados por ele — e os
+    agendamentos da casa são o contrário disso: `0 9,11,13,15,17 * * *` roda de
+    2 em 2h dentro do horário comercial e passa 16h sem rodar à noite. Lido
+    como 4h, o limiar (×3) caía em 12h e o alerta abria toda manhã sobre um bot
+    que tinha rodado às 17h do dia anterior (alerta #1064, 14/09/2026). O mesmo
+    vale para `* * 1-5`: o vão é o fim de semana, 3 dias.
     """
     partes = (cron or '').split()
     if len(partes) != 5:
@@ -674,7 +738,11 @@ def _intervalo_estimado(cron):
     if dia != '*':
         return timedelta(days=max(1, 31 // (dia.count(',') + 1)))
     if semana != '*':
-        return timedelta(days=7)
+        dias = _valores_do_campo(semana, 0, 7)
+        if dias is None:
+            return timedelta(days=7)
+        # cron aceita domingo como 0 e como 7; contar os dois inventa um vão
+        return timedelta(days=_maior_vao({0 if d == 7 else d for d in dias}, 7))
 
     if minuto.startswith('*/'):
         try:
@@ -686,11 +754,10 @@ def _intervalo_estimado(cron):
             return timedelta(hours=int(hora[2:]))
         except ValueError:
             return None
-    if hora == '*':
-        return timedelta(hours=1)
-    if ',' in hora:
-        return timedelta(hours=max(1, 24 // (hora.count(',') + 1)))
-    return timedelta(days=1)
+    horas = _valores_do_campo(hora, 0, 23)
+    if horas is None:
+        return timedelta(days=1)
+    return timedelta(hours=_maior_vao(horas, 24))
 
 
 # ═══════════════════════════════════════════════════════════════════════════

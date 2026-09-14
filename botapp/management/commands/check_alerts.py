@@ -18,6 +18,7 @@ Uso:
 
 Variáveis de ambiente:
   BOTAPP_SILENT_BOT_THRESHOLD_HOURS        (default 24)
+  BOTAPP_SILENT_BOT_CRON_MARGIN_HOURS      (default 1 — folga sobre o vão do cron)
   BOTAPP_ERROR_SPIKE_WINDOW_MINUTES        (default 60)
   BOTAPP_ERROR_SPIKE_THRESHOLD             (default 5)
   BOTAPP_HEARTBEAT_LOST_THRESHOLD_HOURS    (default 6)
@@ -38,6 +39,37 @@ from botapp.notifiers import dispatch_alert
 from botapp.signals import reconcile_bot_last_execution
 
 logger = logging.getLogger(__name__)
+
+
+def _threshold_silencio(bot, default_hours):
+    """Segundos de silêncio tolerados por um bot, em segundos.
+
+    Override no bot manda: quem escreveu o número sabia o que queria. Sem
+    override, o agendamento do projeto de CI vinculado diz mais que o limiar
+    global — um bot de `0 10 * * 1-5` passa o fim de semana calado DE PROPÓSITO.
+    Medido contra as 25h globais, ele virava alerta todo sábado (12/09/2026), e
+    o alerta falso ABERTO calaria a segunda
+    sem execução, que seria real (a deduplicação é contra alerta ABERTO do
+    mesmo tipo).
+
+    Nunca fica mais AGRESSIVO que o global: o cron só entra quando prevê um vão
+    MAIOR. Senão um bot horário viraria alerta a cada duas horas e o painel
+    afogaria em ruído — que é o problema que este limiar existe para evitar.
+    """
+    padrao = bot.effective_silence_threshold_seconds(default_hours)
+    if bot.silence_threshold_minutes or bot.silence_threshold_hours:
+        return padrao
+    from botapp.ci_sync import _intervalo_estimado   # evita import circular
+    vaos = [
+        _intervalo_estimado(agendamento.cron)
+        for projeto in bot.ci_projects.filter(archived=False, local_archived=False)
+        for agendamento in projeto.schedules.filter(active=True)
+    ]
+    vaos = [v.total_seconds() for v in vaos if v is not None]
+    if not vaos:
+        return padrao
+    margem = float(os.environ.get('BOTAPP_SILENT_BOT_CRON_MARGIN_HOURS', '1'))
+    return int(max(padrao, max(vaos) + margem * 3600))
 
 
 def _severity_for_silent(hours_silent, threshold_hours):
@@ -245,7 +277,7 @@ class Command(BaseCommand):
                            reg_multiplier):
         """Espelha a condição de cada regra, negada. Mesmos thresholds."""
         if alerta.type == Alert.Type.SILENT_BOT:
-            segundos = bot.effective_silence_threshold_seconds(default_silent)
+            segundos = _threshold_silencio(bot, default_silent)
             return (bot.last_execution_at is not None
                     and bot.last_execution_at > now - timedelta(seconds=segundos))
 
@@ -303,13 +335,14 @@ class Command(BaseCommand):
         # Usa o campo denormalizado Bot.last_execution_at (atualizado pelo signal).
         # Bots que NUNCA executaram (last_execution_at IS NULL) são candidatos
         # somente se foram criados há mais do que o threshold.
+        # sem prefetch, o limiar pelo cron faria duas queries por bot
         bots = Bot.objects.filter(is_active=True).only(
             'id', 'name', 'last_execution_at',
             'silence_threshold_hours', 'silence_threshold_minutes', 'created_at',
-        )
+        ).prefetch_related('ci_projects__schedules')
 
         for bot in bots:
-            threshold_seconds = bot.effective_silence_threshold_seconds(default_threshold_hours)
+            threshold_seconds = _threshold_silencio(bot, default_threshold_hours)
             threshold_hours = threshold_seconds / 3600.0
             cutoff = now - timedelta(seconds=threshold_seconds)
 
