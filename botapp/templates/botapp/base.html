@@ -12,7 +12,15 @@
     {# valor real aqui. Toda chamada fetch()/JS deve passar por bpUrl(). #}
     <script>
       window.BOTAPP_PREFIX = "{{ request.META.SCRIPT_NAME|default:'' }}";
-      window.bpUrl = function (p) { return (window.BOTAPP_PREFIX || "") + p; };
+      // Idempotente: sob SCRIPT_NAME a tag de URL do Django JÁ devolve o
+      // caminho prefixado — prefixar de novo dobrava o prefixo e dava 404 mudo
+      // (o badge de alertas nunca aparecia no embed da intranet).
+      window.bpUrl = function (p) {
+        var pfx = window.BOTAPP_PREFIX || "";
+        if (!pfx || typeof p !== "string") return p;
+        if (p === pfx || p.indexOf(pfx + "/") === 0) return p;
+        return pfx + p;
+      };
       // Servido sob um reverse-proxy same-origin (ex.: /botapp-app) o BOTAPP_PREFIX
       // é injetado no HTML. Prefixa AUTOMATICAMENTE toda chamada fetch/XHR de
       // caminho absoluto-de-raiz (ex.: polling de auto-refresh) para não cair na
